@@ -1,0 +1,5 @@
+{
+  "name": "Timefy",
+  "description": "Tu aliado inteligente para la gestión del tiempo, productividad y bienestar personal.",
+  "requestFramePermissions": ["geolocation"]
+}
