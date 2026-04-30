@@ -30,6 +30,7 @@ export interface RoutineItem {
   time: string;
   activity: string;
   type: string; // Category ID
+  completed?: boolean;
 }
 
 export interface WellnessReminder {
@@ -47,6 +48,7 @@ export interface CalendarEvent {
   endTime: string;
   location?: string;
   type: string; // Category ID
+  completed?: boolean;
 }
 
 export type AlarmCategory = Category;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   CheckSquare, 
@@ -8,6 +8,7 @@ import {
   Heart, 
   BarChart3,
   Plus,
+  Minus,
   Bell,
   User,
   Smartphone,
@@ -15,6 +16,8 @@ import {
   Coffee,
   Moon,
   Zap,
+  Check,
+  Trash2,
   Pill,
   Utensils,
   AlarmClock,
@@ -35,6 +38,8 @@ import {
   ResponsiveContainer, 
   PieChart, 
   Pie, 
+  AreaChart,
+  Area,
   Cell 
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
@@ -86,11 +91,11 @@ const MOCK_ALARMS: Alarm[] = [
 ];
 
 const MOCK_EVENTS: CalendarEvent[] = [
-  { id: '1', title: 'Reunión de Equipo', startTime: '09:00', endTime: '10:00', location: 'Zoom', type: 'work' },
-  { id: '2', title: 'Clase de Diseño', startTime: '11:00', endTime: '13:00', location: 'Aula 402', type: 'study' },
-  { id: '3', title: 'Almuerzo con Amigos', startTime: '14:00', endTime: '15:30', location: 'Restaurante Central', type: 'personal' },
-  { id: '4', title: 'Yoga Flow', startTime: '17:00', endTime: '18:00', location: 'Gimnasio', type: 'wellness' },
-  { id: '5', title: 'Lectura Técnica', startTime: '20:00', endTime: '21:00', type: 'study' },
+  { id: '1', title: 'Reunión de Equipo', startTime: '09:00', endTime: '10:00', location: 'Zoom', type: 'work', completed: false },
+  { id: '2', title: 'Clase de Diseño', startTime: '11:00', endTime: '13:00', location: 'Aula 402', type: 'study', completed: true },
+  { id: '3', title: 'Almuerzo con Amigos', startTime: '14:00', endTime: '15:30', location: 'Restaurante Central', type: 'personal', completed: false },
+  { id: '4', title: 'Yoga Flow', startTime: '17:00', endTime: '18:00', location: 'Gimnasio', type: 'wellness', completed: false },
+  { id: '5', title: 'Lectura Técnica', startTime: '20:00', endTime: '21:00', type: 'study', completed: false },
 ];
 
 const MOCK_TASKS: Task[] = [
@@ -98,6 +103,16 @@ const MOCK_TASKS: Task[] = [
   { id: '2', title: 'Estudiar para examen de cálculo', completed: true, category: 'study' },
   { id: '3', title: 'Comprar víveres', completed: false, category: 'personal' },
   { id: '4', title: 'Meditación 10 min', completed: false, category: 'wellness' },
+];
+
+const MOCK_STATS = [
+  { day: 'Lun', value: 40 },
+  { day: 'Mar', value: 65 },
+  { day: 'Mié', value: 45 },
+  { day: 'Jue', value: 80 },
+  { day: 'Vie', value: 55 },
+  { day: 'Sáb', value: 90 },
+  { day: 'Dom', value: 70 },
 ];
 
 const MOCK_APP_USAGE: AppUsage[] = [
@@ -115,18 +130,24 @@ const MOCK_LOCATION: LocationTime[] = [
 ];
 
 const MOCK_ROUTINE: RoutineItem[] = [
-  { id: '1', time: '07:00', activity: 'Despertar & Agua', type: 'rest' },
-  { id: '2', time: '08:30', activity: 'Sesión de Estudio', type: 'study' },
-  { id: '3', time: '12:00', activity: 'Almuerzo Saludable', type: 'rest' },
-  { id: '4', time: '15:00', activity: 'Gimnasio', type: 'exercise' },
-  { id: '5', time: '18:00', activity: 'Trabajo en Proyecto', type: 'work' },
+  { id: '1', time: '07:00', activity: 'Despertar & Agua', type: 'rest', completed: true },
+  { id: '2', time: '08:30', activity: 'Sesión de Estudio', type: 'study', completed: true },
+  { id: '3', time: '12:00', activity: 'Almuerzo Saludable', type: 'rest', completed: false },
+  { id: '4', time: '15:00', activity: 'Gimnasio', type: 'exercise', completed: false },
+  { id: '5', time: '18:00', activity: 'Trabajo en Proyecto', type: 'work', completed: false },
 ];
 
 const MOCK_WELLNESS: WellnessReminder[] = [
   { id: '1', type: 'water', label: 'Beber agua', time: '10:00', completed: true },
   { id: '2', type: 'rest', label: 'Descanso visual', time: '11:30', completed: false },
-  { id: '3', type: 'food', label: 'Almuerzo', time: '13:00', completed: false },
+  { id: '3', type: 'food', label: 'Almuerzo saludable', time: '13:00', completed: false },
   { id: '4', type: 'sleep', label: 'Preparar sueño', time: '22:00', completed: false },
+  { id: '5', type: 'water', label: 'Hidratación tarde', time: '16:00', completed: false },
+  { id: '6', type: 'rest', label: 'Estiramiento activo', time: '15:00', completed: false },
+  { id: '7', type: 'food', label: 'Snack de frutos secos', time: '17:30', completed: false },
+  { id: '8', type: 'rest', label: 'Meditación breve', time: '09:00', completed: false },
+  { id: '9', type: 'water', label: 'Agua pre-cena', time: '19:30', completed: false },
+  { id: '10', type: 'sleep', label: 'Sin pantallas', time: '21:30', completed: false },
 ];
 
 const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6'];
@@ -137,20 +158,56 @@ const MOCK_NOTIFICATIONS = [
   { id: '3', title: 'Logro Desbloqueado', message: '¡Has completado todas tus tareas de hoy!', time: 'Hace 2 horas', read: true },
 ];
 
+import { TimeMascot } from './components/TimeMascot';
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [tasks, setTasks] = useState<Task[]>(MOCK_TASKS);
-  const [wellness, setWellness] = useState<WellnessReminder[]>(MOCK_WELLNESS);
-  const [alarms, setAlarms] = useState<Alarm[]>(MOCK_ALARMS);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update time every minute for dynamic background
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Dynamic Background based on time
+  const backgroundStyle = useMemo(() => {
+    const hour = currentTime.getHours();
+    if (hour >= 5 && hour < 12) return 'from-amber-50 via-orange-50 to-sky-100'; // Morning
+    if (hour >= 12 && hour < 17) return 'from-sky-100 via-blue-50 to-white'; // Afternoon
+    if (hour >= 17 && hour < 20) return 'from-orange-100 via-rose-100 to-sunset-wine/20'; // Sunset
+    return 'from-slate-900 via-sunset-wine/40 to-slate-900'; // Night
+  }, [currentTime]);
+
+  const isNight = currentTime.getHours() >= 20 || currentTime.getHours() < 5;
+
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const saved = localStorage.getItem('kairos_tasks');
+    return saved ? JSON.parse(saved) : MOCK_TASKS;
+  });
+  const [wellness, setWellness] = useState<WellnessReminder[]>(() => {
+    const saved = localStorage.getItem('kairos_wellness');
+    return saved ? JSON.parse(saved) : MOCK_WELLNESS;
+  });
+  const [alarms, setAlarms] = useState<Alarm[]>(() => {
+    const saved = localStorage.getItem('kairos_alarms');
+    return saved ? JSON.parse(saved) : MOCK_ALARMS;
+  });
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [taskCategories, setTaskCategories] = useState<Category[]>(DEFAULT_TASK_CATEGORIES);
   const [eventCategories, setEventCategories] = useState<Category[]>(DEFAULT_EVENT_CATEGORIES);
   const [routineCategories, setRoutineCategories] = useState<Category[]>(DEFAULT_ROUTINE_CATEGORIES);
   const [locationCategories, setLocationCategories] = useState<Category[]>(DEFAULT_LOCATION_CATEGORIES);
-  const [events, setEvents] = useState<CalendarEvent[]>(MOCK_EVENTS);
+  const [events, setEvents] = useState<CalendarEvent[]>(() => {
+    const saved = localStorage.getItem('kairos_events');
+    return saved ? JSON.parse(saved) : MOCK_EVENTS;
+  });
   const [locations, setLocations] = useState<LocationTime[]>(MOCK_LOCATION);
-  const [routine, setRoutine] = useState<RoutineItem[]>(MOCK_ROUTINE);
+  const [routine, setRoutine] = useState<RoutineItem[]>(() => {
+    const saved = localStorage.getItem('kairos_routine');
+    return saved ? JSON.parse(saved) : MOCK_ROUTINE;
+  });
   const [selectedDate, setSelectedDate] = useState(new Date());
   
   // Modal States
@@ -170,17 +227,57 @@ export default function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
-  const [userProfile, setUserProfile] = useState({
-    name: 'Lesly Jhoana',
-    email: 'leslyjhoanav2@gmail.com',
-    photo: 'https://picsum.photos/seed/lesly/200'
-  });
+
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
-  const [preferences, setPreferences] = useState({
-    darkMode: false,
-    pushNotifications: true,
-    alarmSound: 'Zen'
+  const [preferences, setPreferences] = useState(() => {
+    const saved = localStorage.getItem('kairos_preferences');
+    return saved ? JSON.parse(saved) : {
+      darkMode: false,
+      pushNotifications: true,
+      alarmSound: 'Zen'
+    };
   });
+
+  const [userProfile, setUserProfile] = useState(() => {
+    const saved = localStorage.getItem('kairos_profile');
+    return saved ? JSON.parse(saved) : {
+      name: 'Lesly Jhoana',
+      email: 'leslyjhoanav2@gmail.com',
+      photo: 'https://picsum.photos/seed/lesly/200'
+    };
+  });
+
+  // Persistence Effects
+  useEffect(() => { localStorage.setItem('kairos_tasks', JSON.stringify(tasks)); }, [tasks]);
+  useEffect(() => { localStorage.setItem('kairos_wellness', JSON.stringify(wellness)); }, [wellness]);
+  useEffect(() => { localStorage.setItem('kairos_alarms', JSON.stringify(alarms)); }, [alarms]);
+  useEffect(() => { localStorage.setItem('kairos_events', JSON.stringify(events)); }, [events]);
+  useEffect(() => { localStorage.setItem('kairos_routine', JSON.stringify(routine)); }, [routine]);
+  useEffect(() => { localStorage.setItem('kairos_profile', JSON.stringify(userProfile)); }, [userProfile]);
+  useEffect(() => { localStorage.setItem('kairos_preferences', JSON.stringify(preferences)); }, [preferences]);
+
+  const [streak, setStreak] = useState(5);
+  const [mascotName, setMascotName] = useState(localStorage.getItem('mascotName') || 'Kairo');
+  const [isMascotRenameOpen, setIsMascotRenameOpen] = useState(false);
+  const [lastCheckIn, setLastCheckIn] = useState<string | null>(localStorage.getItem('lastCheckIn'));
+
+  useEffect(() => {
+    const today = new Date().toDateString();
+    if (lastCheckIn !== today) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toDateString();
+
+      if (lastCheckIn === yesterdayStr) {
+        setStreak(prev => prev + 1);
+      } else if (lastCheckIn !== null) {
+        setStreak(1);
+      }
+      
+      setLastCheckIn(today);
+      localStorage.setItem('lastCheckIn', today);
+    }
+  }, [lastCheckIn]);
 
   // Form States
   const [newAlarm, setNewAlarm] = useState({ title: '', time: '08:00', category: 'meal' });
@@ -206,6 +303,14 @@ export default function App() {
     setWellness(wellness.map(w => w.id === id ? { ...w, completed: !w.completed } : w));
   };
 
+  const toggleRoutine = (id: string) => {
+    setRoutine(routine.map(r => r.id === id ? { ...r, completed: !r.completed } : r));
+  };
+
+  const toggleEvent = (id: string) => {
+    setEvents(events.map(e => e.id === id ? { ...e, completed: !e.completed } : e));
+  };
+
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -217,277 +322,372 @@ export default function App() {
     }
   };
 
+  const calculateBalance = () => {
+    const taskCompletion = tasks.length > 0 ? (tasks.filter(t => t.completed).length / tasks.length) * 100 : 0;
+    const wellnessCompletion = wellness.length > 0 ? (wellness.filter(w => w.completed).length / wellness.length) * 100 : 0;
+    const routineCompletion = routine.length > 0 ? (routine.filter(r => r.completed).length / routine.length) * 100 : 0;
+    const eventCompletion = events.length > 0 ? (events.filter(e => e.completed).length / events.length) * 100 : 0;
+    
+    // Weighted average: Tasks (30%), Wellness (25%), Routine (25%), Events (20%)
+    return Math.round((taskCompletion * 0.3) + (wellnessCompletion * 0.25) + (routineCompletion * 0.25) + (eventCompletion * 0.2));
+  };
+
+  const balance = calculateBalance();
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
         return (
-          <div className="space-y-6 pb-24">
-            <header className="flex justify-between items-center px-4 pt-8">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-6 h-6 bg-primary rounded-lg flex items-center justify-center">
-                    <Clock size={14} className="text-white" />
+          <div className="space-y-8 pb-32">
+            <header className="flex justify-between items-center px-8 pt-12">
+              <div className="space-y-1">
+                <motion.div 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="flex items-center gap-2"
+                >
+                  <div className="w-10 h-10 sunset-gradient rounded-2xl flex items-center justify-center shadow-xl shadow-sunset-orange/20">
+                    <Clock size={20} className="text-white" />
                   </div>
-                  <span className="text-sm font-black tracking-tight text-primary uppercase">Timefy</span>
-                </div>
-                <h1 className="text-3xl font-bold tracking-tight text-slate-900">Hola, {userProfile.name.split(' ')[0]}</h1>
-                <p className="text-slate-500">¿Cómo va tu día hoy?</p>
+                  <span className="text-xl font-black tracking-tighter text-sunset-wine uppercase">Kairos</span>
+                </motion.div>
+                <motion.h1 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className={`text-5xl font-black tracking-tight ${isNight ? 'text-white' : 'text-sunset-wine'}`}
+                >
+                  Hola, <span className="text-sunset-orange">{userProfile.name.split(' ')[0]}</span>
+                </motion.h1>
+                <p className={`${isNight ? 'text-slate-300' : 'text-sunset-wine/60'} font-bold text-lg`}>Tu tiempo, tu esencia.</p>
               </div>
-              <div className="flex gap-3">
-                <button 
+              <div className="flex gap-4 items-center">
+                <motion.button 
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  whileTap={{ scale: 0.9 }}
                   onClick={() => setIsNotificationsOpen(true)}
-                  className="p-2 rounded-full bg-white shadow-sm border border-slate-100 relative"
+                  className="p-4 rounded-[2rem] bg-white/40 backdrop-blur-3xl border border-white/40 shadow-xl relative"
                 >
-                  <Bell size={20} className="text-slate-600" />
+                  <Bell size={24} className="text-sunset-wine" />
                   {notifications.some(n => !n.read) && (
-                    <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full" />
+                    <span className="absolute top-3 right-3 w-3.5 h-3.5 bg-mint border-2 border-white rounded-full mint-glow" />
                   )}
-                </button>
-                <button 
+                </motion.button>
+                <motion.button 
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
                   onClick={() => setIsProfileOpen(true)}
-                  className="p-2 rounded-full bg-primary text-white shadow-md"
+                  className="w-14 h-14 rounded-[2rem] overflow-hidden border-2 border-white shadow-2xl"
                 >
-                  <User size={20} />
-                </button>
+                  <img src={userProfile.photo} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                </motion.button>
               </div>
             </header>
 
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-2 gap-4 px-4">
+            {/* Time Mascot - The Living Energy of Time */}
+            <section className="px-8">
+              <div className="flex justify-center mb-2">
+                <button 
+                  onClick={() => setIsMascotRenameOpen(true)}
+                  className="px-4 py-1 bg-white/40 backdrop-blur-xl border border-white/40 rounded-full text-[10px] font-black text-sunset-wine/60 uppercase tracking-widest hover:bg-white/60 transition-all"
+                >
+                  {mascotName}
+                </button>
+              </div>
               <motion.div 
-                whileHover={{ scale: 1.02 }}
-                className="glass-card p-4 flex flex-col gap-2"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="glass-card overflow-hidden relative border-none bg-gradient-to-b from-white/60 to-white/20 p-0"
               >
-                <div className="p-2 bg-indigo-50 w-fit rounded-lg">
-                  <Smartphone size={20} className="text-indigo-600" />
-                </div>
-                <span className="text-2xl font-bold">2h 30m</span>
-                <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Uso de Pantalla</span>
-              </motion.div>
-              <motion.div 
-                whileHover={{ scale: 1.02 }}
-                className="glass-card p-4 flex flex-col gap-2"
-              >
-                <div className="p-2 bg-emerald-50 w-fit rounded-lg">
-                  <Zap size={20} className="text-emerald-600" />
-                </div>
-                <span className="text-2xl font-bold">75%</span>
-                <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Productividad</span>
-              </motion.div>
-            </div>
-
-            {/* Wellness Reminders Horizontal Scroll */}
-            <section className="space-y-3">
-              <div className="flex justify-between items-center px-4">
-                <h2 className="text-lg font-semibold">Bienestar</h2>
-                <div className="flex items-center gap-3">
-                  <button 
-                    onClick={() => setActiveTab('wellness')}
-                    className="text-sm text-primary font-medium"
-                  >
-                    Ver todos
-                  </button>
-                  <button 
-                    onClick={() => setIsWellnessModalOpen(true)}
-                    className="p-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-primary/10 hover:text-primary transition-colors"
-                  >
-                    <Plus size={18} />
-                  </button>
-                </div>
-              </div>
-              <div className="flex gap-4 overflow-x-auto px-4 pb-2 no-scrollbar">
-                {wellness.map((item) => (
-                  <motion.div 
-                    key={item.id}
-                    onClick={() => toggleWellness(item.id)}
-                    className={`flex-shrink-0 w-32 p-4 rounded-2xl border transition-all cursor-pointer ${
-                      item.completed 
-                        ? 'bg-wellness/10 border-wellness/20' 
-                        : 'bg-white border-slate-100'
-                    }`}
-                  >
-                    <div className={`p-2 rounded-xl w-fit mb-3 ${
-                      item.completed ? 'bg-wellness text-white' : 'bg-slate-50 text-slate-400'
-                    }`}>
-                      {item.type === 'water' && <Droplets size={18} />}
-                      {item.type === 'food' && <Coffee size={18} />}
-                      {item.type === 'sleep' && <Moon size={18} />}
-                      {item.type === 'rest' && <Heart size={18} />}
-                    </div>
-                    <p className={`text-sm font-medium ${item.completed ? 'text-wellness' : 'text-slate-700'}`}>
-                      {item.label}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-1">{item.time}</p>
-                  </motion.div>
-                ))}
-              </div>
-            </section>
-
-            {/* Tasks Preview */}
-            <section className="px-4 space-y-3">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-semibold">Tareas de Hoy</h2>
-                <div className="flex items-center gap-3">
-                  <button 
-                    onClick={() => setActiveTab('tasks')}
-                    className="text-sm text-primary font-medium"
-                  >
-                    Ver todos
-                  </button>
-                  <button 
-                    onClick={() => setIsTaskModalOpen(true)}
-                    className="p-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-primary/10 hover:text-primary transition-colors"
-                  >
-                    <Plus size={18} />
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {tasks.slice(0, 3).map((task) => (
-                  <div 
-                    key={task.id} 
-                    onClick={() => toggleTask(task.id)}
-                    className="flex items-center gap-3 p-4 glass-card cursor-pointer"
-                  >
-                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
-                      task.completed ? 'bg-primary border-primary' : 'border-slate-300 bg-white'
-                    }`}>
-                      {task.completed && <CheckSquare size={14} className="text-white" />}
-                    </div>
-                    <span className={`text-sm ${task.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>
-                      {task.title}
-                    </span>
+                <div className="absolute top-10 left-10 z-20 flex flex-col gap-3">
+                  <div className="flex items-center gap-2 bg-white/60 backdrop-blur-xl px-4 py-2 rounded-full w-fit border border-white/40 shadow-sm">
+                    <Zap size={16} className="text-sunset-orange" fill="currentColor" />
+                    <span className="text-[10px] font-black text-sunset-wine uppercase tracking-[0.2em]">{streak} Días de Racha</span>
                   </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Location Tracking Preview */}
-            <section className="px-4 space-y-3">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-semibold">Tiempo por Ubicación</h2>
-                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-4 mt-1">
+                    <div className="h-2.5 w-40 bg-white/40 rounded-full overflow-hidden border border-white/20">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${balance}%` }}
+                        className="h-full sunset-gradient"
+                      />
+                    </div>
+                    <span className="text-xs font-black text-sunset-wine/40 uppercase tracking-widest">{balance}% Armonía</span>
+                  </div>
+                </div>
+                
+                <TimeMascot streak={streak} balance={balance} />
+                
+                {/* Debug controls for the user to see evolution */}
+                <div className="absolute bottom-8 right-10 flex gap-4 opacity-0 hover:opacity-100 transition-opacity z-30">
                   <button 
-                    onClick={() => setActiveTab('stats')}
-                    className="text-sm text-primary font-medium"
+                    onClick={() => setStreak(Math.max(0, streak - 1))} 
+                    className="w-12 h-12 flex items-center justify-center bg-white/80 backdrop-blur-xl shadow-2xl rounded-[1.5rem] text-sunset-wine hover:bg-white transition-all"
                   >
-                    Ver todos
+                    <Minus size={20} />
                   </button>
                   <button 
-                    onClick={() => setIsLocationModalOpen(true)}
-                    className="p-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-primary/10 hover:text-primary transition-colors"
+                    onClick={() => setStreak(streak + 1)} 
+                    className="w-12 h-12 flex items-center justify-center bg-white/80 backdrop-blur-xl shadow-2xl rounded-[1.5rem] text-sunset-wine hover:bg-white transition-all"
                   >
-                    <Plus size={18} />
+                    <Plus size={20} />
                   </button>
                 </div>
-              </div>
-              <div className="glass-card p-4 h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={locations}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <YAxis hide />
-                    <Tooltip 
-                      cursor={{ fill: '#f8fafc' }}
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    />
-                    <Bar dataKey="time" fill="#4F46E5" radius={[4, 4, 0, 0]} barSize={30} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              </motion.div>
             </section>
+
+            {/* Floating Quick Actions */}
+            <section className="px-8 grid grid-cols-2 gap-6">
+              <motion.div 
+                whileHover={{ y: -8 }}
+                className="glass-card p-8 flex flex-col gap-6 bg-gradient-to-br from-white/60 to-mint/10 border-none shadow-2xl"
+              >
+                <div className="w-14 h-14 bg-mint/20 rounded-[1.5rem] flex items-center justify-center text-mint shadow-inner">
+                  <Heart size={28} fill="currentColor" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-sunset-wine tracking-tight">Bienestar</h3>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Tu equilibrio vital</p>
+                </div>
+                <button 
+                  onClick={() => setActiveTab('wellness')}
+                  className="mt-2 text-[10px] font-black text-sunset-orange uppercase tracking-[0.3em] flex items-center gap-2 group"
+                >
+                  Explorar <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+              </motion.div>
+
+              <motion.div 
+                whileHover={{ y: -8 }}
+                className="glass-card p-8 flex flex-col gap-6 bg-gradient-to-br from-white/60 to-sunset-orange/10 border-none shadow-2xl"
+              >
+                <div className="w-14 h-14 bg-sunset-orange/20 rounded-[1.5rem] flex items-center justify-center text-sunset-orange shadow-inner">
+                  <Zap size={28} fill="currentColor" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-sunset-wine tracking-tight">Productividad</h3>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Tus metas de hoy</p>
+                </div>
+                <button 
+                  onClick={() => setActiveTab('tasks')}
+                  className="mt-2 text-[10px] font-black text-sunset-orange uppercase tracking-[0.3em] flex items-center gap-2 group"
+                >
+                  Gestionar <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+              </motion.div>
+            </section>
+          </div>
+        );
+      case 'tasks':
+        return (
+          <div className="space-y-8 pb-32 px-8 pt-12">
+            <header className="flex justify-between items-center">
+              <div className="space-y-1">
+                <h2 className="text-4xl font-black text-sunset-wine tracking-tight">Tareas</h2>
+                <p className="text-sunset-wine/40 font-bold">Tus metas, tu ritmo.</p>
+              </div>
+              <motion.button 
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setIsTaskModalOpen(true)}
+                className="w-14 h-14 sunset-gradient text-white rounded-[2rem] flex items-center justify-center shadow-xl shadow-sunset-orange/30"
+              >
+                <Plus size={28} />
+              </motion.button>
+            </header>
+
+            <div className="space-y-4">
+              {tasks.map((task) => (
+                <motion.div 
+                  key={task.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="glass-card p-6 flex items-center justify-between bg-white/60 backdrop-blur-xl border-none shadow-lg"
+                >
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => setTasks(tasks.map(t => t.id === task.id ? {...t, completed: !t.completed} : t))}
+                      className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center transition-all ${task.completed ? 'bg-mint border-mint shadow-lg shadow-mint/20' : 'border-slate-200'}`}
+                    >
+                      {task.completed && <Check size={18} className="text-white" />}
+                    </button>
+                    <div className="space-y-0.5">
+                      <span className={`text-lg font-bold transition-all ${task.completed ? 'text-slate-300 line-through' : 'text-sunset-wine'}`}>
+                        {task.title}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-sunset-orange uppercase tracking-widest">{task.category}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setTasks(tasks.filter(t => t.id !== task.id))}
+                    className="p-2 text-slate-300 hover:text-sunset-red transition-colors"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </motion.div>
+              ))}
+            </div>
           </div>
         );
       case 'wellness':
         return (
-          <div className="p-4 space-y-6 pb-24">
-            <header className="pt-8 flex justify-between items-end">
-              <div>
-                <h1 className="text-3xl font-bold">Bienestar</h1>
-                <p className="text-slate-500">Tus recordatorios de salud</p>
+          <div className="space-y-8 pb-32 px-8 pt-12 overflow-y-auto">
+            <header className="flex justify-between items-center">
+              <div className="space-y-1">
+                <h2 className="text-4xl font-black text-sunset-wine tracking-tight">Vida</h2>
+                <p className="text-sunset-wine/40 font-bold">Escucha a tu cuerpo.</p>
               </div>
-              <button 
+              <motion.button 
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
                 onClick={() => setIsWellnessModalOpen(true)}
-                className="p-3 bg-wellness text-white rounded-2xl shadow-lg shadow-wellness/20 hover:scale-105 active:scale-95 transition-transform"
+                className="w-14 h-14 sunset-gradient text-white rounded-[2rem] flex items-center justify-center shadow-xl shadow-sunset-orange/30"
               >
-                <Plus size={24} />
-              </button>
+                <Plus size={28} />
+              </motion.button>
             </header>
-            <div className="grid grid-cols-1 gap-4">
+
+            <div className="grid grid-cols-1 gap-6">
               {wellness.map((item) => (
                 <motion.div 
-                  layout
-                  key={item.id} 
+                  key={item.id}
+                  whileHover={{ scale: 1.02 }}
                   onClick={() => toggleWellness(item.id)}
-                  className={`flex items-center gap-4 p-5 rounded-3xl border transition-all cursor-pointer ${
-                    item.completed 
-                      ? 'bg-wellness/10 border-wellness/20' 
-                      : 'bg-white border-slate-100 shadow-sm'
+                  className={`glass-card p-6 flex items-center gap-6 cursor-pointer bg-gradient-to-br border-none shadow-xl transition-all ${
+                    item.completed ? 'from-slate-100 to-slate-200 opacity-60' : 'from-white/60 to-mint/5 hover:from-white/80'
                   }`}
                 >
-                  <div className={`p-3 rounded-2xl ${
-                    item.completed ? 'bg-wellness text-white' : 'bg-slate-50 text-slate-400'
+                  <div className={`w-14 h-14 rounded-[1.5rem] flex items-center justify-center shadow-inner ${
+                    item.completed ? 'bg-slate-300 text-white' : 
+                    item.type === 'water' ? 'bg-sky-100 text-sky-500' :
+                    item.type === 'food' ? 'bg-orange-100 text-orange-500' :
+                    item.type === 'sleep' ? 'bg-indigo-100 text-indigo-500' :
+                    'bg-mint/20 text-mint'
                   }`}>
-                    {item.type === 'water' && <Droplets size={24} />}
-                    {item.type === 'food' && <Coffee size={24} />}
-                    {item.type === 'sleep' && <Moon size={24} />}
-                    {item.type === 'rest' && <Heart size={24} />}
+                    {item.type === 'water' ? <Droplets size={24} /> :
+                     item.type === 'food' ? <Coffee size={24} /> :
+                     item.type === 'sleep' ? <Moon size={24} /> :
+                     <Heart size={24} fill={item.completed ? 'white' : 'currentColor'} />}
                   </div>
-                  <div className="flex-1">
-                    <p className={`text-lg font-bold ${item.completed ? 'text-wellness' : 'text-slate-700'}`}>
+                  <div className="flex-1 space-y-0.5">
+                    <h3 className={`text-lg font-black ${item.completed ? 'text-slate-400 line-through' : 'text-sunset-wine'}`}>
                       {item.label}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Clock size={14} className="text-slate-400" />
-                      <span className="text-sm text-slate-400 font-medium">{item.time}</span>
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.time}</span>
+                      <span className="text-[10px] font-black text-mint uppercase tracking-widest bg-mint/10 px-2 py-0.5 rounded-full">Sugerencia</span>
                     </div>
                   </div>
-                  <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors ${
-                    item.completed ? 'bg-wellness border-wellness' : 'border-slate-200 bg-white'
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center border-2 transition-all ${
+                    item.completed ? 'bg-mint border-mint text-white' : 'border-slate-100 text-transparent'
                   }`}>
-                    {item.completed && <CheckSquare size={16} className="text-white" />}
+                    <Check size={14} />
                   </div>
                 </motion.div>
               ))}
             </div>
           </div>
         );
-      case 'tasks':
+      case 'calendar':
         return (
-          <div className="p-4 space-y-6 pb-24">
-            <header className="pt-8 flex justify-between items-end">
-              <div>
-                <h1 className="text-3xl font-bold">Mis Tareas</h1>
-                <p className="text-slate-500">Organiza tus pendientes</p>
+          <div className="space-y-8 pb-32 px-8 pt-12">
+            <header className="flex justify-between items-center">
+              <div className="space-y-1">
+                <h2 className="text-4xl font-black text-sunset-wine tracking-tight">Agenda</h2>
+                <p className="text-sunset-wine/40 font-bold">Tu flujo del tiempo.</p>
               </div>
-              <button 
-                onClick={() => setIsTaskModalOpen(true)}
-                className="p-3 bg-primary text-white rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-transform"
+              <motion.button 
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setIsEventModalOpen(true)}
+                className="w-14 h-14 sunset-gradient text-white rounded-[2rem] flex items-center justify-center shadow-xl shadow-sunset-orange/30"
               >
-                <Plus size={24} />
-              </button>
+                <Plus size={28} />
+              </motion.button>
             </header>
-            <div className="space-y-3">
-              {tasks.map((task) => (
+
+            <div className="space-y-6">
+              {events.map((event) => (
                 <motion.div 
-                  layout
-                  key={task.id} 
-                  onClick={() => toggleTask(task.id)}
-                  className="flex items-center gap-3 p-4 glass-card cursor-pointer"
+                  key={event.id}
+                  className={`glass-card p-0 overflow-hidden bg-white/60 backdrop-blur-xl border-none shadow-lg flex transition-all ${event.completed ? 'opacity-50 grayscale-[0.5]' : ''}`}
                 >
-                  <div className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-colors ${
-                    task.completed ? 'bg-primary border-primary' : 'border-slate-300 bg-white'
-                  }`}>
-                    {task.completed && <CheckSquare size={16} className="text-white" />}
+                  <div className={`w-2 ${event.completed ? 'bg-slate-300' : 'sunset-gradient'}`} />
+                  <div className="p-6 flex-1 flex justify-between items-center">
+                    <div className="space-y-1">
+                      <h3 className={`text-xl font-black ${event.completed ? 'text-sunset-wine/40 line-through' : 'text-sunset-wine'}`}>{event.title}</h3>
+                      <div className="flex items-center gap-3 text-sunset-wine/60 font-bold text-xs">
+                        <div className="flex items-center gap-1">
+                          <Clock size={12} />
+                          <span>{event.startTime} - {event.endTime}</span>
+                        </div>
+                        {event.location && (
+                          <div className="flex items-center gap-1">
+                            <MapPin size={12} />
+                            <span>{event.location}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="px-4 py-1.5 bg-sunset-orange/10 rounded-full">
+                        <span className="text-[10px] font-black text-sunset-orange uppercase tracking-widest">{event.category}</span>
+                      </div>
+                      <button 
+                        onClick={() => toggleEvent(event.id)}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${event.completed ? 'bg-mint text-white' : 'bg-white border-2 border-slate-100 text-transparent hover:border-mint'}`}
+                      >
+                        <Check size={16} className={event.completed ? 'opacity-100' : 'opacity-0'} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className={`font-medium ${task.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>
-                      {task.title}
-                    </p>
-                    <span className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
-                      {task.category}
-                    </span>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        );
+      case 'alarms':
+        return (
+          <div className="space-y-8 pb-32 px-8 pt-12">
+            <header className="flex justify-between items-center">
+              <div className="space-y-1">
+                <h2 className="text-4xl font-black text-sunset-wine tracking-tight">Alarmas</h2>
+                <p className="text-sunset-wine/40 font-bold">Despierta tu esencia.</p>
+              </div>
+              <motion.button 
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setIsAlarmModalOpen(true)}
+                className="w-14 h-14 sunset-gradient text-white rounded-[2rem] flex items-center justify-center shadow-xl shadow-sunset-orange/30"
+              >
+                <Plus size={28} />
+              </motion.button>
+            </header>
+
+            <div className="grid grid-cols-1 gap-4">
+              {alarms.map((alarm) => (
+                <motion.div 
+                  key={alarm.id}
+                  className="glass-card p-8 flex items-center justify-between bg-white/60 backdrop-blur-xl border-none shadow-lg"
+                >
+                  <div className="space-y-1">
+                    <span className="text-4xl font-black text-sunset-wine tracking-tighter">{alarm.time}</span>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-slate-500">{alarm.title}</h3>
+                      <span className="text-[10px] font-black text-sunset-orange uppercase tracking-widest opacity-60">• {alarm.category}</span>
+                    </div>
                   </div>
+                  <button 
+                    onClick={() => setAlarms(alarms.map(a => a.id === alarm.id ? {...a, enabled: !a.enabled} : a))}
+                    className={`w-14 h-8 rounded-full p-1 transition-all duration-300 ${alarm.enabled ? 'bg-mint' : 'bg-slate-200'}`}
+                  >
+                    <motion.div 
+                      animate={{ x: alarm.enabled ? 24 : 0 }}
+                      className="w-6 h-6 bg-white rounded-full shadow-sm"
+                    />
+                  </button>
                 </motion.div>
               ))}
             </div>
@@ -495,281 +695,61 @@ export default function App() {
         );
       case 'stats':
         return (
-          <div className="p-4 space-y-8 pb-24">
-            <header className="pt-8">
-              <h1 className="text-3xl font-bold">Estadísticas</h1>
-              <p className="text-slate-500">Análisis de tu tiempo</p>
+          <div className="space-y-8 pb-32 px-8 pt-12">
+            <header className="space-y-1">
+              <h2 className="text-4xl font-black text-sunset-wine tracking-tight">Análisis</h2>
+              <p className="text-sunset-wine/40 font-bold">Tu evolución consciente.</p>
             </header>
 
-            <section className="space-y-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Smartphone size={20} className="text-indigo-500" />
-                Uso de Aplicaciones
-              </h2>
-              <div className="glass-card p-6 flex flex-col items-center">
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={MOCK_APP_USAGE}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="time"
-                      >
-                        {MOCK_APP_USAGE.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+            <div className="grid grid-cols-2 gap-6">
+              <motion.div 
+                whileHover={{ y: -5 }}
+                className="glass-card p-8 flex flex-col gap-4 bg-white/60 backdrop-blur-xl border-none shadow-xl"
+              >
+                <div className="w-12 h-12 bg-sunset-orange/10 rounded-2xl flex items-center justify-center text-sunset-orange">
+                  <Smartphone size={24} />
                 </div>
-                <div className="grid grid-cols-2 gap-4 w-full mt-4">
-                  {MOCK_APP_USAGE.map((app, i) => (
-                    <div key={app.name} className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                      <span className="text-sm text-slate-600">{app.name}</span>
-                      <span className="text-xs font-bold ml-auto">{app.time}m</span>
-                    </div>
-                  ))}
+                <div>
+                  <span className="text-3xl font-black text-sunset-wine tracking-tighter">2.5h</span>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Pantalla</p>
                 </div>
-              </div>
-            </section>
+              </motion.div>
+              <motion.div 
+                whileHover={{ y: -5 }}
+                className="glass-card p-8 flex flex-col gap-4 bg-white/60 backdrop-blur-xl border-none shadow-xl"
+              >
+                <div className="w-12 h-12 bg-mint/10 rounded-2xl flex items-center justify-center text-mint">
+                  <Zap size={24} />
+                </div>
+                <div>
+                  <span className="text-3xl font-black text-sunset-wine tracking-tighter">85%</span>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Enfoque</p>
+                </div>
+              </motion.div>
+            </div>
 
-            <section className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <MapPin size={20} className="text-primary" />
-                  Tiempo por Ubicación
-                </h2>
-                <button 
-                  onClick={() => setIsLocationModalOpen(true)}
-                  className="p-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-primary/10 hover:text-primary transition-colors"
-                >
-                  <Plus size={18} />
-                </button>
-              </div>
-              <div className="glass-card p-4 h-64">
+            <div className="glass-card p-8 bg-white/60 backdrop-blur-xl border-none shadow-xl space-y-6">
+              <h3 className="text-xl font-black text-sunset-wine tracking-tight">Ritmo Semanal</h3>
+              <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={locations}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                  <AreaChart data={MOCK_STATS}>
+                    <defs>
+                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#FF7E5F" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#FF7E5F" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
                     <YAxis hide />
                     <Tooltip 
-                      cursor={{ fill: '#f8fafc' }}
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      contentStyle={{ backgroundColor: 'rgba(255,255,255,0.8)', borderRadius: '20px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)' }}
+                      itemStyle={{ color: '#6B2D5C', fontWeight: 900 }}
                     />
-                    <Bar dataKey="time" fill="#4F46E5" radius={[4, 4, 0, 0]} barSize={30} />
-                  </BarChart>
+                    <Area type="monotone" dataKey="value" stroke="#FF7E5F" strokeWidth={4} fillOpacity={1} fill="url(#colorValue)" />
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
-            </section>
-
-            <section className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <Clock size={20} className="text-emerald-500" />
-                  Rutina Diaria
-                </h2>
-                <button 
-                  onClick={() => setIsRoutineModalOpen(true)}
-                  className="p-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-primary/10 hover:text-primary transition-colors"
-                >
-                  <Plus size={18} />
-                </button>
-              </div>
-              <div className="space-y-4">
-                {routine.map((item) => (
-                  <div key={item.id} className="flex gap-4">
-                    <div className="w-12 text-sm font-bold text-slate-400 pt-1">{item.time}</div>
-                    <div className="flex-1 glass-card p-4 flex items-center justify-between">
-                      <span className="font-medium">{item.activity}</span>
-                      <span className={`text-[10px] px-2 py-1 rounded-full uppercase font-bold ${
-                        item.type === 'work' ? 'bg-indigo-100 text-indigo-600' :
-                        item.type === 'study' ? 'bg-amber-100 text-amber-600' :
-                        item.type === 'exercise' ? 'bg-emerald-100 text-emerald-600' :
-                        'bg-slate-100 text-slate-600'
-                      }`}>
-                        {item.type}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
-        );
-      case 'calendar':
-        return (
-          <div className="space-y-6 pb-24">
-            <header className="px-4 pt-8 flex justify-between items-end">
-              <div>
-                <h1 className="text-3xl font-bold">Agenda</h1>
-                <p className="text-slate-500">Tu cronograma semanal</p>
-              </div>
-              <button 
-                onClick={() => setIsEventModalOpen(true)}
-                className="p-3 bg-primary text-white rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-transform"
-              >
-                <Plus size={24} />
-              </button>
-            </header>
-
-            {/* Horizontal Date Picker */}
-            <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
-              {days.map((date, i) => {
-                const isSelected = date.toDateString() === selectedDate.toDateString();
-                return (
-                  <motion.button
-                    key={i}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setSelectedDate(date)}
-                    className={`flex-shrink-0 w-16 h-24 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all ${
-                      isSelected 
-                        ? 'bg-primary text-white shadow-lg shadow-primary/30' 
-                        : 'bg-white text-slate-400 border border-slate-100'
-                    }`}
-                  >
-                    <span className="text-[10px] uppercase font-bold tracking-widest">
-                      {date.toLocaleDateString('es-ES', { weekday: 'short' })}
-                    </span>
-                    <span className="text-xl font-bold">{date.getDate()}</span>
-                    {isSelected && <motion.div layoutId="active-day" className="w-1 h-1 bg-white rounded-full" />}
-                  </motion.button>
-                );
-              })}
-            </div>
-
-            {/* Timeline View */}
-            <div className="px-4 space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-semibold">Eventos</h2>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Hoy</span>
-              </div>
-              
-              <div className="relative space-y-6 before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100">
-                {events.map((event) => (
-                  <motion.div 
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    key={event.id} 
-                    className="flex gap-6 relative"
-                  >
-                    <div className="flex flex-col items-center">
-                      <div className={`w-10 h-10 rounded-full border-4 border-slate-50 flex items-center justify-center z-10 ${
-                        event.type === 'work' ? 'bg-indigo-500' :
-                        event.type === 'study' ? 'bg-amber-500' :
-                        event.type === 'wellness' ? 'bg-pink-500' :
-                        'bg-emerald-500'
-                      }`}>
-                        <Clock size={16} className="text-white" />
-                      </div>
-                    </div>
-                    
-                    <div className="flex-1 glass-card p-4 space-y-2">
-                      <div className="flex justify-between items-start">
-                        <h3 className="font-bold text-slate-800">{event.title}</h3>
-                        <span className="text-xs font-bold text-slate-400">{event.startTime}</span>
-                      </div>
-                      {event.location && (
-                        <div className="flex items-center gap-1 text-xs text-slate-500">
-                          <MapPin size={12} />
-                          <span>{event.location}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                          event.type === 'work' ? 'bg-indigo-100 text-indigo-600' :
-                          event.type === 'study' ? 'bg-amber-100 text-amber-600' :
-                          event.type === 'wellness' ? 'bg-pink-100 text-pink-600' :
-                          'bg-emerald-100 text-emerald-600'
-                        }`}>
-                          {event.type}
-                        </span>
-                        <span className="text-[10px] text-slate-400">{event.startTime} - {event.endTime}</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-      case 'alarms':
-        return (
-          <div className="p-4 space-y-6 pb-24">
-            <header className="pt-8 flex justify-between items-end">
-              <div>
-                <h1 className="text-3xl font-bold">Alarmas</h1>
-                <p className="text-slate-500">Gestión de recordatorios</p>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setIsCategoryModalOpen(true)}
-                  className="p-3 bg-white text-slate-600 rounded-2xl shadow-sm border border-slate-100 hover:bg-slate-50 transition-colors"
-                  title="Añadir Categoría"
-                >
-                  <LayoutDashboard size={20} />
-                </button>
-                <button 
-                  onClick={() => setIsAlarmModalOpen(true)}
-                  className="p-3 bg-primary text-white rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-transform"
-                >
-                  <Plus size={24} />
-                </button>
-              </div>
-            </header>
-
-            <div className="space-y-4">
-              {alarms.map((alarm) => {
-                const category = categories.find(c => c.id === alarm.category) || categories[categories.length - 1];
-                return (
-                  <motion.div 
-                    key={alarm.id}
-                    className={`glass-card p-5 flex items-center justify-between transition-all ${
-                      !alarm.enabled ? 'opacity-60' : ''
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-2xl bg-${category.color}-100 text-${category.color}-600`}>
-                        {category.icon === 'utensils' && <Utensils size={20} />}
-                        {category.icon === 'pill' && <Pill size={20} />}
-                        {category.icon === 'droplets' && <Droplets size={20} />}
-                        {category.icon === 'coffee' && <Coffee size={20} />}
-                        {category.icon === 'bell' && <Bell size={20} />}
-                        {!['utensils', 'pill', 'droplets', 'coffee', 'bell'].includes(category.icon) && <Zap size={20} />}
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-800">{alarm.time}</h3>
-                        <p className="text-sm font-medium text-slate-600">{alarm.title}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] font-bold text-primary uppercase">{category.name}</span>
-                          <div className="flex gap-1">
-                            {alarm.days.map(day => (
-                              <span key={day} className="text-[9px] font-bold text-slate-400 uppercase">{day}</span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <button 
-                      onClick={() => setAlarms(alarms.map(a => a.id === alarm.id ? { ...a, enabled: !a.enabled } : a))}
-                      className={`w-12 h-6 rounded-full relative transition-colors ${
-                        alarm.enabled ? 'bg-primary' : 'bg-slate-200'
-                      }`}
-                    >
-                      <motion.div 
-                        animate={{ x: alarm.enabled ? 24 : 2 }}
-                        className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm"
-                      />
-                    </button>
-                  </motion.div>
-                );
-              })}
             </div>
           </div>
         );
@@ -855,11 +835,11 @@ export default function App() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Inicio</label>
+                    <label className="text-xs font-bold text-sunset-wine/40 uppercase tracking-widest">Inicio</label>
                     <input type="time" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none" value={newEvent.startTime} onChange={(e) => setNewEvent({...newEvent, startTime: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Fin</label>
+                    <label className="text-xs font-bold text-sunset-wine/40 uppercase tracking-widest">Fin</label>
                     <input type="time" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none" value={newEvent.endTime} onChange={(e) => setNewEvent({...newEvent, endTime: e.target.value})} />
                   </div>
                 </div>
@@ -1664,43 +1644,43 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* Navigation Bar */}
-      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-sm glass-card p-2 flex justify-around items-center z-50">
+      {/* Organic Navigation Bar */}
+      <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-sm glass-card p-3 flex justify-around items-center z-50 bg-white/40 backdrop-blur-3xl border-none shadow-2xl rounded-[2.5rem]">
         <NavButton 
           active={activeTab === 'dashboard'} 
           onClick={() => setActiveTab('dashboard')} 
-          icon={<LayoutDashboard size={20} />} 
+          icon={<LayoutDashboard size={24} />} 
           label="Inicio" 
         />
         <NavButton 
           active={activeTab === 'tasks'} 
           onClick={() => setActiveTab('tasks')} 
-          icon={<CheckSquare size={20} />} 
-          label="Tareas" 
+          icon={<Zap size={24} />} 
+          label="Metas" 
         />
         <NavButton 
           active={activeTab === 'calendar'} 
           onClick={() => setActiveTab('calendar')} 
-          icon={<CalendarIcon size={20} />} 
+          icon={<CalendarIcon size={24} />} 
           label="Agenda" 
         />
         <NavButton 
           active={activeTab === 'wellness'} 
           onClick={() => setActiveTab('wellness')} 
-          icon={<Heart size={20} />} 
-          label="Salud" 
+          icon={<Heart size={24} />} 
+          label="Vida" 
         />
         <NavButton 
           active={activeTab === 'alarms'} 
           onClick={() => setActiveTab('alarms')} 
-          icon={<AlarmClock size={20} />} 
-          label="Alarmas" 
+          icon={<AlarmClock size={24} />} 
+          label="Ritmo" 
         />
         <NavButton 
           active={activeTab === 'stats'} 
           onClick={() => setActiveTab('stats')} 
-          icon={<BarChart3 size={20} />} 
-          label="Stats" 
+          icon={<BarChart3 size={24} />} 
+          label="Ser" 
         />
       </nav>
     </div>
@@ -1711,20 +1691,21 @@ function NavButton({ active, onClick, icon, label }: { active: boolean, onClick:
   return (
     <button 
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${
-        active ? 'text-primary' : 'text-slate-400 hover:text-slate-600'
-      }`}
+      className="flex flex-col items-center gap-1.5 p-2 relative group"
     >
       <motion.div
-        animate={active ? { scale: 1.2, y: -2 } : { scale: 1, y: 0 }}
+        animate={active ? { scale: 1.2, y: -4 } : { scale: 1, y: 0 }}
+        className={`transition-colors duration-300 ${active ? 'text-sunset-orange' : 'text-sunset-wine/30 group-hover:text-sunset-wine/60'}`}
       >
         {icon}
       </motion.div>
-      <span className="text-[10px] font-bold uppercase tracking-tighter">{label}</span>
+      <span className={`text-[8px] font-black uppercase tracking-[0.2em] transition-colors duration-300 ${active ? 'text-sunset-wine' : 'text-sunset-wine/20'}`}>
+        {label}
+      </span>
       {active && (
         <motion.div 
-          layoutId="nav-dot"
-          className="w-1 h-1 bg-primary rounded-full" 
+          layoutId="nav-glow"
+          className="absolute -inset-2 bg-sunset-orange/10 blur-xl rounded-full -z-10" 
         />
       )}
     </button>
@@ -1738,10 +1719,28 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
   const [rememberMe, setRememberMe] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-8 relative overflow-hidden font-sans">
-      {/* Background Decorative Elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl" />
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-rose-50 to-sky-100 flex items-center justify-center p-6 relative overflow-hidden font-sans">
+      {/* Dynamic Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <motion.div 
+          animate={{ 
+            scale: [1, 1.3, 1],
+            x: [0, 100, 0],
+            y: [0, -50, 0]
+          }}
+          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+          className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-sunset-orange/10 blur-[120px] rounded-full"
+        />
+        <motion.div 
+          animate={{ 
+            scale: [1, 1.2, 1],
+            x: [0, -80, 0],
+            y: [0, 100, 0]
+          }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          className="absolute -bottom-40 -right-40 w-[500px] h-[500px] bg-mint/10 blur-[100px] rounded-full"
+        />
+      </div>
       
       <AnimatePresence mode="wait">
         {view === 'welcome' ? (
@@ -1749,267 +1748,274 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
             key="welcome"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="w-full max-w-md bg-white rounded-[3rem] p-12 shadow-2xl shadow-slate-200/50 relative z-10 text-center space-y-10"
+            exit={{ opacity: 0, scale: 1.1 }}
+            className="w-full max-w-md bg-white/40 backdrop-blur-3xl rounded-[4rem] p-12 shadow-[0_32px_64px_rgba(0,0,0,0.08)] relative z-10 text-center space-y-12 border border-white/40"
           >
-            <div className="space-y-6">
+            <div className="space-y-8">
               <motion.div 
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="w-24 h-24 bg-primary rounded-[2.5rem] mx-auto flex items-center justify-center shadow-2xl shadow-primary/20"
+                transition={{ delay: 0.2, type: "spring" }}
+                className="w-28 h-28 sunset-gradient rounded-[3rem] mx-auto flex items-center justify-center shadow-2xl shadow-sunset-orange/30 relative"
               >
-                <Clock size={48} className="text-white" />
+                <Clock size={56} className="text-white" />
+                <motion.div 
+                  animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+                  transition={{ duration: 4, repeat: Infinity }}
+                  className="absolute inset-0 sunset-gradient rounded-[3rem] blur-xl -z-10"
+                />
               </motion.div>
-              <div className="space-y-2">
-                <h1 className="text-5xl font-black tracking-tighter text-slate-900">Timefy</h1>
-                <p className="text-slate-500 font-medium text-lg">Tu tiempo, bajo control.</p>
+              <div className="space-y-3">
+                <h1 className="text-6xl font-black tracking-tighter text-sunset-wine">Kairos</h1>
+                <p className="text-sunset-wine/60 font-bold text-xl tracking-tight">Tiempo con sentido.</p>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <button 
+            <div className="space-y-5">
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => setView('login')}
-                className="w-full py-5 bg-primary text-white font-black rounded-2xl shadow-xl shadow-primary/20 flex items-center justify-center gap-3 group hover:scale-[1.02] active:scale-[0.98] transition-all text-lg"
+                className="w-full py-6 sunset-gradient text-white font-black rounded-[2rem] shadow-2xl shadow-sunset-orange/30 flex items-center justify-center gap-3 group text-xl"
               >
-                Acceder
-                <ArrowRight size={22} className="group-hover:translate-x-1 transition-transform" />
-              </button>
-              <button 
+                Comenzar
+                <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
+              </motion.button>
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => setView('register')}
-                className="w-full py-5 bg-white text-slate-900 border-2 border-slate-100 font-black rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-50 hover:border-slate-200 active:scale-[0.98] transition-all text-lg"
+                className="w-full py-6 bg-white/60 backdrop-blur-md text-sunset-wine border border-white/40 font-black rounded-[2rem] flex items-center justify-center gap-3 hover:bg-white/80 transition-all text-xl"
               >
-                Registrarse
-              </button>
+                Crear cuenta
+              </motion.button>
 
-              <div className="relative py-4">
+              <div className="relative py-6">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-100"></div>
+                  <div className="w-full border-t border-sunset-wine/10"></div>
                 </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-4 text-slate-400 font-bold tracking-widest">o continúa con</span>
+                <div className="relative flex justify-center text-[10px] uppercase tracking-[0.3em]">
+                  <span className="bg-white/0 px-6 text-sunset-wine/40 font-black">Conexión rápida</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <button 
                   onClick={onLogin}
-                  className="flex items-center justify-center gap-3 py-4 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-slate-100 transition-all group"
+                  className="flex items-center justify-center gap-3 py-5 bg-white/40 border border-white/40 rounded-[2rem] hover:bg-white/60 transition-all group"
                 >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                   </svg>
-                  <span className="text-sm font-bold text-slate-700">Gmail</span>
+                  <span className="text-sm font-black text-sunset-wine">Google</span>
                 </button>
                 <button 
                   onClick={onLogin}
-                  className="flex items-center justify-center gap-3 py-4 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-slate-100 transition-all group"
+                  className="flex items-center justify-center gap-3 py-5 bg-white/40 border border-white/40 rounded-[2rem] hover:bg-white/60 transition-all group"
                 >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M17.05 20.28c-.98.95-2.05 1.61-3.22 1.61-1.14 0-1.55-.67-2.85-.67-1.32 0-1.78.65-2.85.65-1.14 0-2.11-.6-3.1-1.59C3.01 18.27 1.5 14.96 1.5 11.8c0-4.94 3.19-7.55 6.27-7.55 1.65 0 2.97.58 3.84.58.84 0 2.37-.61 4.28-.61 1.6 0 3.7.63 5.08 2.57-3.16 1.85-2.65 5.89.44 7.15-1.12 2.76-2.58 5.44-4.36 6.34zM12.03 3.92C11.96 1.95 13.6 0 15.5 0c.1 2.12-1.92 4.14-3.47 3.92z"/>
                   </svg>
-                  <span className="text-sm font-bold text-slate-700">iCloud</span>
+                  <span className="text-sm font-black text-sunset-wine">Apple</span>
                 </button>
               </div>
             </div>
 
-            <div className="pt-4">
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Productividad & Bienestar</p>
+            <div className="pt-6">
+              <p className="text-[10px] text-sunset-wine/30 font-black uppercase tracking-[0.4em]">Experiencia de Conciencia</p>
             </div>
           </motion.div>
         ) : (
           <motion.div 
             key={view}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="w-full max-w-md bg-white rounded-[2.5rem] p-8 md:p-10 shadow-2xl shadow-slate-200/50 relative z-10 flex flex-col border border-slate-50"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="w-full max-w-md bg-white/60 backdrop-blur-3xl rounded-[3rem] p-10 shadow-2xl relative z-10 flex flex-col border border-white/40"
           >
-            <div className="mb-8 flex justify-between items-start">
+            <div className="mb-10 flex justify-between items-center">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+                <div className="w-10 h-10 sunset-gradient rounded-2xl flex items-center justify-center shadow-lg shadow-sunset-orange/20">
                   <Clock size={20} className="text-white" />
                 </div>
-                <h1 className="text-xl font-black tracking-tight text-slate-900">Timefy</h1>
+                <h1 className="text-2xl font-black tracking-tighter text-sunset-wine">Kairos</h1>
               </div>
               <button 
                 onClick={() => setView('welcome')}
-                className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                className="w-10 h-10 flex items-center justify-center bg-white/40 rounded-full hover:bg-white/80 transition-colors"
               >
-                <Plus size={24} className="rotate-45 text-slate-400" />
+                <Plus size={24} className="rotate-45 text-sunset-wine/40" />
               </button>
             </div>
 
             {view === 'login' ? (
-              <div className="space-y-6">
+              <div className="space-y-8">
                 <div>
-                  <h2 className="text-3xl font-bold text-slate-900 mb-2">Acceder</h2>
-                  <p className="text-slate-500 text-sm">Bienvenido de nuevo a tu espacio productivo.</p>
+                  <h2 className="text-4xl font-black text-sunset-wine mb-2 tracking-tight">Acceder</h2>
+                  <p className="text-sunset-wine/60 font-medium">Bienvenido de nuevo a tu espacio vital.</p>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Usuario o Correo</label>
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-sunset-wine/50 uppercase tracking-[0.2em] ml-2">Usuario o Correo</label>
                     <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
                       <input 
                         type="text" 
                         placeholder="nombre@ejemplo.com" 
-                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-700"
+                        className="w-full pl-14 pr-5 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Contraseña</label>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-sunset-wine/50 uppercase tracking-[0.2em] ml-2">Contraseña</label>
                     <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
                       <input 
                         type={showPasswordLogin ? "text" : "password"} 
                         placeholder="••••••••" 
-                        className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-700"
+                        className="w-full pl-14 pr-14 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
                       />
                       <button 
                         type="button"
                         onClick={() => setShowPasswordLogin(!showPasswordLogin)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        className="absolute right-5 top-1/2 -translate-y-1/2 text-sunset-wine/30 hover:text-sunset-wine transition-colors"
                       >
-                        {showPasswordLogin ? <EyeOff size={18} /> : <Eye size={18} />}
+                        {showPasswordLogin ? <EyeOff size={20} /> : <Eye size={20} />}
                       </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between px-1">
-                    <label className="flex items-center gap-2 cursor-pointer group">
+                  <div className="flex items-center justify-between px-2">
+                    <label className="flex items-center gap-3 cursor-pointer group">
                       <div 
-                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${rememberMe ? 'bg-primary border-primary' : 'border-slate-200 group-hover:border-slate-300'}`} 
+                        className={`w-6 h-6 rounded-xl border-2 flex items-center justify-center transition-all ${rememberMe ? 'bg-sunset-orange border-sunset-orange shadow-lg shadow-sunset-orange/20' : 'border-slate-200 group-hover:border-sunset-orange/30'}`} 
                         onClick={() => setRememberMe(!rememberMe)}
                       >
-                        {rememberMe && <div className="w-2 h-2 bg-white rounded-full" />}
+                        {rememberMe && <div className="w-2.5 h-2.5 bg-white rounded-full" />}
                       </div>
-                      <span className="text-sm text-slate-500 font-medium">Recuérdame</span>
+                      <span className="text-sm text-sunset-wine/60 font-bold">Recuérdame</span>
                     </label>
                     <button 
                       onClick={() => setView('recover')}
-                      className="text-sm font-bold text-primary hover:underline transition-all"
+                      className="text-sm font-black text-sunset-orange hover:text-sunset-red transition-all"
                     >
-                      ¿Olvidaste la contraseña?
+                      ¿Perdiste la llave?
                     </button>
                   </div>
 
                   <button 
                     onClick={onLogin}
-                    className="w-full py-4 bg-primary text-white font-bold rounded-2xl shadow-xl shadow-primary/20 flex items-center justify-center gap-2 group hover:scale-[1.02] active:scale-[0.98] transition-all mt-4"
+                    className="w-full py-5 sunset-gradient text-white font-black rounded-[2rem] shadow-2xl shadow-sunset-orange/30 flex items-center justify-center gap-3 group hover:scale-[1.02] active:scale-[0.98] transition-all mt-6 text-lg"
                   >
-                    Acceder
-                    <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                    Entrar
+                    <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>
               </div>
             ) : view === 'register' ? (
-              <div className="space-y-6">
+              <div className="space-y-8">
                 <div>
-                  <h2 className="text-3xl font-bold text-slate-900 mb-2">Registrarse</h2>
-                  <p className="text-slate-500 text-sm">Únete a miles de personas optimizando su vida.</p>
+                  <h2 className="text-4xl font-black text-sunset-wine mb-2 tracking-tight">Registrarse</h2>
+                  <p className="text-sunset-wine/60 font-medium">Comienza tu viaje hacia el equilibrio.</p>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Nombre de Usuario</label>
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-sunset-wine/50 uppercase tracking-[0.2em] ml-2">Nombre de Usuario</label>
                     <div className="relative">
-                      <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <User className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
                       <input 
                         type="text" 
                         placeholder="Tu nombre" 
-                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-700"
+                        className="w-full pl-14 pr-5 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Correo Electrónico</label>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-sunset-wine/50 uppercase tracking-[0.2em] ml-2">Correo Electrónico</label>
                     <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
                       <input 
                         type="email" 
                         placeholder="correo@ejemplo.com" 
-                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-700"
+                        className="w-full pl-14 pr-5 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Contraseña</label>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-sunset-wine/50 uppercase tracking-[0.2em] ml-2">Contraseña</label>
                     <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
                       <input 
                         type={showPasswordRegister ? "text" : "password"} 
                         placeholder="Mínimo 8 caracteres" 
-                        className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-700"
+                        className="w-full pl-14 pr-14 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
                       />
                       <button 
                         type="button"
                         onClick={() => setShowPasswordRegister(!showPasswordRegister)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        className="absolute right-5 top-1/2 -translate-y-1/2 text-sunset-wine/30 hover:text-sunset-wine transition-colors"
                       >
-                        {showPasswordRegister ? <EyeOff size={18} /> : <Eye size={18} />}
+                        {showPasswordRegister ? <EyeOff size={20} /> : <Eye size={20} />}
                       </button>
                     </div>
                   </div>
 
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
-                      Al registrarte, confirmas que has leído y aceptas nuestra <span className="text-primary font-bold cursor-pointer">Política de Privacidad</span>.
+                  <div className="p-5 bg-white/40 backdrop-blur-md rounded-[2rem] border border-white/40">
+                    <p className="text-[11px] text-sunset-wine/60 leading-relaxed font-medium">
+                      Al unirte, aceptas nuestra <span className="text-sunset-orange font-black cursor-pointer">Esencia de Privacidad</span>.
                     </p>
                   </div>
 
                   <button 
                     onClick={onLogin}
-                    className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-200/50 flex items-center justify-center gap-2 group hover:scale-[1.02] active:scale-[0.98] transition-all mt-4"
+                    className="w-full py-5 sunset-gradient text-white font-black rounded-[2rem] shadow-2xl shadow-sunset-orange/30 flex items-center justify-center gap-3 group hover:scale-[1.02] active:scale-[0.98] transition-all mt-6 text-lg"
                   >
-                    Registrarse
-                    <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                    Unirse
+                    <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-8">
                 <div>
-                  <h2 className="text-3xl font-bold text-slate-900 mb-2">Recuperar contraseña</h2>
-                  <p className="text-slate-500 text-sm leading-relaxed">
-                    Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.
-                  </p>
+                  <h2 className="text-4xl font-black text-sunset-wine mb-2 tracking-tight">Recuperar</h2>
+                  <p className="text-slate-500 font-medium">Te enviaremos una nueva llave a tu correo.</p>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Correo Electrónico</label>
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Correo Electrónico</label>
                     <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
                       <input 
                         type="email" 
                         placeholder="correo@ejemplo.com" 
-                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-slate-700"
+                        className="w-full pl-14 pr-5 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium"
                       />
                     </div>
                   </div>
 
                   <button 
-                    className="w-full py-4 bg-primary text-white font-bold rounded-2xl shadow-xl shadow-primary/20 flex items-center justify-center gap-2 group hover:scale-[1.02] active:scale-[0.98] transition-all mt-4"
+                    className="w-full py-5 sunset-gradient text-white font-black rounded-[2rem] shadow-2xl shadow-sunset-orange/30 flex items-center justify-center gap-3 group hover:scale-[1.02] active:scale-[0.98] transition-all mt-6 text-lg"
                   >
-                    Enviar enlace
-                    <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                    Enviar llave
+                    <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
                   </button>
 
                   <div className="text-center pt-2">
                     <button 
                       onClick={() => setView('login')}
-                      className="text-sm font-bold text-slate-400 hover:text-primary transition-colors"
+                      className="text-sm font-black text-sunset-wine/40 hover:text-sunset-orange transition-colors"
                     >
-                      Volver a iniciar sesión
+                      Volver a la puerta
                     </button>
                   </div>
                 </div>
