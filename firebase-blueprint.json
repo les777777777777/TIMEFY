@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and mascot state",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "kairosId": { "type": "string" },
+        "name": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "mascotName": { "type": "string" },
+        "streak": { "type": "number" },
+        "balance": { "type": "number" },
+        "lastActive": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "kairosId", "name", "mascotName", "streak", "balance"]
+    },
+    "Friendship": {
+      "title": "Friendship",
+      "description": "Connection between two users",
+      "type": "object",
+      "properties": {
+        "userIds": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userIds", "createdAt"]
+    },
+    "Interaction": {
+      "title": "Interaction",
+      "description": "Quick support signals between friends",
+      "type": "object",
+      "properties": {
+        "fromUserId": { "type": "string" },
+        "toUserId": { "type": "string" },
+        "type": { "type": "string", "enum": ["well_done", "keep_going", "rest"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromUserId", "toUserId", "type", "timestamp"]
+    },
+    "Task": {
+      "title": "Task",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "text": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "text", "completed", "createdAt"]
+    },
+    "Habit": {
+      "title": "Habit",
+      "description": "Items for wellness or routine",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "text": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "type": { "type": "string", "enum": ["wellness", "routine"] },
+        "icon": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "text", "completed", "type", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users": {
+...
+    "interactions": {
+      "schema": "Interaction",
+      "description": "Transient support signals"
+    },
+    "tasks": {
+      "schema": "Task",
+      "description": "User tasks"
+    },
+    "habits": {
+      "schema": "Habit",
+      "description": "User wellness rituals and routines"
+    }
+  }
+}

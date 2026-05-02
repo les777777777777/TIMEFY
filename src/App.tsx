@@ -26,7 +26,20 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
-  Lock
+  Lock,
+  Users,
+  Search,
+  LogOut,
+  Sun,
+  Smile,
+  Settings,
+  Wind,
+  Edit2,
+  ChevronRight,
+  BarChart2,
+  HelpCircle,
+  FileText,
+  TrendingUp
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -44,6 +57,18 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { Task, AppUsage, LocationTime, RoutineItem, WellnessReminder, CalendarEvent, Alarm, Category } from './types';
+import { 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  onAuthStateChanged, 
+  signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword 
+} from 'firebase/auth';
+import { auth } from './lib/firebase';
+import { SocialService, UserProfile } from './services/socialService';
+import { FriendsView } from './components/FriendsView';
+import { AIService, UserSnapshot, AIQueryType } from './services/aiService';
 
 // Mock Data
 const DEFAULT_TASK_CATEGORIES: Category[] = [
@@ -162,8 +187,101 @@ import { TimeMascot } from './components/TimeMascot';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const [streak, setStreak] = useState(5);
+  const [mascotName, setMascotName] = useState(localStorage.getItem('mascotName') || 'Kairo');
+  const [lastCheckIn, setLastCheckIn] = useState<string | null>(localStorage.getItem('lastCheckIn'));
+
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [wellness, setWellness] = useState<WellnessReminder[]>([]);
+  const [routine, setRoutine] = useState<RoutineItem[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>(() => {
+    const saved = localStorage.getItem('kairos_events');
+    return saved ? JSON.parse(saved) : MOCK_EVENTS;
+  });
+
+  // Calculate Balance - Derived from real-time state
+  const balance = useMemo(() => {
+    const taskCompletion = tasks.length > 0 ? (tasks.filter(t => t.completed).length / tasks.length) * 100 : 0;
+    const wellnessCompletion = wellness.length > 0 ? (wellness.filter(w => w.completed).length / wellness.length) * 100 : 0;
+    const routineCompletion = routine.length > 0 ? (routine.filter(r => r.completed).length / routine.length) * 100 : 0;
+    const eventCompletion = events.length > 0 ? (events.filter(e => e.completed).length / events.length) * 100 : 0;
+    
+    return Math.round((taskCompletion * 0.3) + (wellnessCompletion * 0.25) + (routineCompletion * 0.25) + (eventCompletion * 0.2));
+  }, [tasks, wellness, routine, events]);
+
+  // Firestore Real-time Sync
+  useEffect(() => {
+    let unsubscribeTasks: () => void;
+    let unsubscribeHabits: () => void;
+
+    if (isAuthenticated && user) {
+      // Subscribe to Tasks
+      unsubscribeTasks = SocialService.subscribeToTasks((syncedTasks) => {
+        if (syncedTasks.length > 0) {
+          setTasks(syncedTasks as Task[]);
+        } else {
+          // If Firestore is empty, seed with mock but save to cloud
+          MOCK_TASKS.forEach(t => SocialService.saveTask(t));
+        }
+      });
+
+      // Subscribe to Wellness/Routine (Habits)
+      unsubscribeHabits = SocialService.subscribeToHabits((syncedHabits) => {
+        const wellnessItems = syncedHabits.filter(h => h.type === 'wellness');
+        const routineItems = syncedHabits.filter(h => h.type === 'routine');
+        
+        if (wellnessItems.length > 0) setWellness(wellnessItems as WellnessReminder[]);
+        else MOCK_WELLNESS.forEach(w => SocialService.saveHabit({...w, type: 'wellness'}));
+
+        if (routineItems.length > 0) setRoutine(routineItems as RoutineItem[]);
+        else MOCK_ROUTINE.forEach(r => SocialService.saveHabit({...r, type: 'routine'}));
+      });
+    }
+
+    return () => {
+      if (unsubscribeTasks) unsubscribeTasks();
+      if (unsubscribeHabits) unsubscribeHabits();
+    };
+  }, [isAuthenticated, user]);
+
+  // Firebase Auth Lifecycle
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (u) {
+        setUser(u);
+        setIsAuthenticated(true);
+        setUserProfile({
+          name: u.displayName || 'Usuario de Kairos',
+          email: u.email || '',
+          photo: u.photoURL || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + u.uid
+        });
+        SocialService.syncProfile({
+          name: u.displayName || undefined,
+          photoURL: u.photoURL || undefined,
+          streak,
+          balance,
+          mascotName
+        });
+      } else {
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+      setIsLoadingAuth(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Update profile in background when streak or balance changes
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      SocialService.syncProfile({ streak, balance, mascotName });
+    }
+  }, [streak, balance, mascotName, isAuthenticated, user]);
 
   // Update time every minute for dynamic background
   useEffect(() => {
@@ -182,14 +300,6 @@ export default function App() {
 
   const isNight = currentTime.getHours() >= 20 || currentTime.getHours() < 5;
 
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem('kairos_tasks');
-    return saved ? JSON.parse(saved) : MOCK_TASKS;
-  });
-  const [wellness, setWellness] = useState<WellnessReminder[]>(() => {
-    const saved = localStorage.getItem('kairos_wellness');
-    return saved ? JSON.parse(saved) : MOCK_WELLNESS;
-  });
   const [alarms, setAlarms] = useState<Alarm[]>(() => {
     const saved = localStorage.getItem('kairos_alarms');
     return saved ? JSON.parse(saved) : MOCK_ALARMS;
@@ -199,15 +309,9 @@ export default function App() {
   const [eventCategories, setEventCategories] = useState<Category[]>(DEFAULT_EVENT_CATEGORIES);
   const [routineCategories, setRoutineCategories] = useState<Category[]>(DEFAULT_ROUTINE_CATEGORIES);
   const [locationCategories, setLocationCategories] = useState<Category[]>(DEFAULT_LOCATION_CATEGORIES);
-  const [events, setEvents] = useState<CalendarEvent[]>(() => {
-    const saved = localStorage.getItem('kairos_events');
-    return saved ? JSON.parse(saved) : MOCK_EVENTS;
-  });
+  
   const [locations, setLocations] = useState<LocationTime[]>(MOCK_LOCATION);
-  const [routine, setRoutine] = useState<RoutineItem[]>(() => {
-    const saved = localStorage.getItem('kairos_routine');
-    return saved ? JSON.parse(saved) : MOCK_ROUTINE;
-  });
+  
   const [selectedDate, setSelectedDate] = useState(new Date());
   
   // Modal States
@@ -247,6 +351,89 @@ export default function App() {
     };
   });
 
+  // AI Insights State
+  const [aiThought, setAiThought] = useState<string>(() => {
+    return localStorage.getItem('kairos_ai_thought') || 'Sintonizando con tu esencia...';
+  });
+  const [isAiThinking, setIsAiThinking] = useState(false);
+  const [isAiConsultationOpen, setIsAiConsultationOpen] = useState(false);
+  const [consultationResponse, setConsultationResponse] = useState('');
+  const [activeQueryType, setActiveQueryType] = useState<AIQueryType | null>(null);
+  const [userQuestion, setUserQuestion] = useState('');
+
+  const refreshAIThought = async () => {
+    if (isAiThinking) return;
+    setIsAiThinking(true);
+    
+    const snapshot: UserSnapshot = {
+      tasksCompleted: tasks.filter(t => t.completed).length,
+      tasksTotal: tasks.length || 1,
+      routineCompleted: routine.filter(r => r.completed).length,
+      routineTotal: routine.length || 1,
+      wellnessCompleted: wellness.filter(w => w.completed).length,
+      wellnessTotal: wellness.length || 1,
+      streak,
+      balance,
+      mascotName,
+      state: balance > 70 ? 'constant' : balance < 30 ? 'inactive' : 'active'
+    };
+
+    const thought = await AIService.getMascotThought(snapshot);
+    setAiThought(thought);
+    localStorage.setItem('kairos_ai_thought', thought);
+    setIsAiThinking(false);
+  };
+
+  const consultAI = async (type: AIQueryType) => {
+    setIsAiThinking(true);
+    setActiveQueryType(type);
+    
+    // Smooth transition: clear previous response if switching types
+    if (type !== activeQueryType) {
+      setConsultationResponse('');
+    }
+    
+    const snapshot: UserSnapshot = {
+      tasksCompleted: tasks.filter(t => t.completed).length,
+      tasksTotal: tasks.length || 1,
+      routineCompleted: routine.filter(r => r.completed).length,
+      routineTotal: routine.length || 1,
+      wellnessCompleted: wellness.filter(w => w.completed).length,
+      wellnessTotal: wellness.length || 1,
+      streak,
+      balance,
+      mascotName,
+      state: balance > 70 ? 'constant' : balance < 30 ? 'inactive' : 'active'
+    };
+
+    try {
+      const response = await AIService.getMascotThought(snapshot, type, type === 'open' ? userQuestion : undefined);
+      setConsultationResponse(response);
+    } catch (error) {
+      setConsultationResponse("Hubo un error al sintonizar con Kairo. Inténtalo de nuevo.");
+    } finally {
+      setIsAiThinking(false);
+      if (type === 'open') setUserQuestion('');
+    }
+  };
+
+  // Refresh AI thought on load and tab change back to dashboard
+  useEffect(() => {
+    if (activeTab === 'dashboard') {
+      refreshAIThought();
+    }
+  }, [activeTab]);
+
+  // Auto-hide AI thought after 10 seconds
+  useEffect(() => {
+    if (aiThought && aiThought !== 'Sintonizando con tu esencia...') {
+      const timer = setTimeout(() => {
+        setAiThought('');
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [aiThought]);
+
   // Persistence Effects
   useEffect(() => { localStorage.setItem('kairos_tasks', JSON.stringify(tasks)); }, [tasks]);
   useEffect(() => { localStorage.setItem('kairos_wellness', JSON.stringify(wellness)); }, [wellness]);
@@ -256,10 +443,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('kairos_profile', JSON.stringify(userProfile)); }, [userProfile]);
   useEffect(() => { localStorage.setItem('kairos_preferences', JSON.stringify(preferences)); }, [preferences]);
 
-  const [streak, setStreak] = useState(5);
-  const [mascotName, setMascotName] = useState(localStorage.getItem('mascotName') || 'Kairo');
   const [isMascotRenameOpen, setIsMascotRenameOpen] = useState(false);
-  const [lastCheckIn, setLastCheckIn] = useState<string | null>(localStorage.getItem('lastCheckIn'));
 
   useEffect(() => {
     const today = new Date().toDateString();
@@ -296,15 +480,27 @@ export default function App() {
   });
 
   const toggleTask = (id: string) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    const task = tasks.find(t => t.id === id);
+    if (task) {
+      SocialService.saveTask({ ...task, completed: !task.completed });
+    }
+    setTimeout(refreshAIThought, 1000); 
   };
 
   const toggleWellness = (id: string) => {
-    setWellness(wellness.map(w => w.id === id ? { ...w, completed: !w.completed } : w));
+    const item = wellness.find(w => w.id === id);
+    if (item) {
+      SocialService.saveHabit({ ...item, completed: !item.completed, type: 'wellness' });
+    }
+    setTimeout(refreshAIThought, 1000);
   };
 
   const toggleRoutine = (id: string) => {
-    setRoutine(routine.map(r => r.id === id ? { ...r, completed: !r.completed } : r));
+    const item = routine.find(r => r.id === id);
+    if (item) {
+      SocialService.saveHabit({ ...item, completed: !item.completed, type: 'routine' });
+    }
+    setTimeout(refreshAIThought, 1000);
   };
 
   const toggleEvent = (id: string) => {
@@ -321,18 +517,6 @@ export default function App() {
       reader.readAsDataURL(file);
     }
   };
-
-  const calculateBalance = () => {
-    const taskCompletion = tasks.length > 0 ? (tasks.filter(t => t.completed).length / tasks.length) * 100 : 0;
-    const wellnessCompletion = wellness.length > 0 ? (wellness.filter(w => w.completed).length / wellness.length) * 100 : 0;
-    const routineCompletion = routine.length > 0 ? (routine.filter(r => r.completed).length / routine.length) * 100 : 0;
-    const eventCompletion = events.length > 0 ? (events.filter(e => e.completed).length / events.length) * 100 : 0;
-    
-    // Weighted average: Tasks (30%), Wellness (25%), Routine (25%), Events (20%)
-    return Math.round((taskCompletion * 0.3) + (wellnessCompletion * 0.25) + (routineCompletion * 0.25) + (eventCompletion * 0.2));
-  };
-
-  const balance = calculateBalance();
 
   const renderContent = () => {
     switch (activeTab) {
@@ -416,7 +600,31 @@ export default function App() {
                   </div>
                 </div>
                 
-                <TimeMascot streak={streak} balance={balance} />
+                <div 
+                  className="cursor-pointer group relative"
+                  onClick={() => setIsAiConsultationOpen(true)}
+                >
+                  <TimeMascot streak={streak} balance={balance} />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="bg-white/40 backdrop-blur-xl px-4 py-2 rounded-full border border-white/40 text-[9px] font-black uppercase tracking-widest text-sunset-wine shadow-xl">
+                      Consultar
+                    </div>
+                  </div>
+                </div>
+                
+                {/* AI Thought Bubble - Subtle & Meaningful */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  key={aiThought}
+                  className="absolute bottom-10 left-10 right-10 flex flex-col items-center z-30 pointer-events-none"
+                >
+                  <div className="bg-white/80 backdrop-blur-2xl px-6 py-3 rounded-full border border-white/60 shadow-xl shadow-sunset-orange/5 max-w-[80%] text-center">
+                    <p className="text-[11px] font-black italic text-sunset-wine/60 leading-snug tracking-tight">
+                      {isAiThinking ? '...' : `"${aiThought}"`}
+                    </p>
+                  </div>
+                </motion.div>
                 
                 {/* Debug controls for the user to see evolution */}
                 <div className="absolute bottom-8 right-10 flex gap-4 opacity-0 hover:opacity-100 transition-opacity z-30">
@@ -521,7 +729,7 @@ export default function App() {
                     </div>
                   </div>
                   <button 
-                    onClick={() => setTasks(tasks.filter(t => t.id !== task.id))}
+                    onClick={() => SocialService.deleteTask(task.id)}
                     className="p-2 text-slate-300 hover:text-sunset-red transition-colors"
                   >
                     <Trash2 size={18} />
@@ -753,10 +961,51 @@ export default function App() {
             </div>
           </div>
         );
+      case 'circles':
+        return <FriendsView />;
       default:
         return null;
     }
   };
+
+  if (isLoadingAuth) {
+    return (
+      <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex items-center justify-center p-8 text-center">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="space-y-8"
+        >
+          <div className="relative">
+            <motion.div 
+              animate={{ 
+                scale: [1, 1.1, 1],
+                rotate: [0, 5, -5, 0]
+              }}
+              transition={{ repeat: Infinity, duration: 3 }}
+              className="w-24 h-24 sunset-gradient rounded-[2.5rem] mx-auto flex items-center justify-center shadow-2xl shadow-sunset-orange/20"
+            >
+              <Clock size={40} className="text-white" />
+            </motion.div>
+            <motion.div 
+              animate={{ opacity: [0.3, 0.6, 0.3] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+              className="absolute inset-0 bg-sunset-orange blur-3xl opacity-20 -z-10" 
+            />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black text-sunset-wine tracking-tighter uppercase">Kairos</h1>
+            <p className="text-[10px] font-black text-sunset-wine/30 uppercase tracking-[0.3em]">Sincronizando con tu tiempo</p>
+          </div>
+          <div className="flex justify-center gap-1.5">
+            <motion.div animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1.5 h-1.5 rounded-full bg-sunset-orange" />
+            <motion.div animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1.5 h-1.5 rounded-full bg-sunset-orange" />
+            <motion.div animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1.5 h-1.5 rounded-full bg-sunset-orange" />
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <AuthScreen onLogin={() => setIsAuthenticated(true)} />;
@@ -802,7 +1051,7 @@ export default function App() {
                   <button onClick={() => setIsTaskModalOpen(false)} className="flex-1 p-4 bg-slate-100 text-slate-600 font-bold rounded-2xl">Cancelar</button>
                   <button onClick={() => {
                     if (!newTask.title) return;
-                    setTasks([...tasks, { id: Date.now().toString(), title: newTask.title, completed: false, category: newTask.category }]);
+                    SocialService.saveTask({ title: newTask.title, completed: false, category: newTask.category });
                     setIsTaskModalOpen(false);
                     setNewTask({ title: '', category: taskCategories[0]?.id || 'work' });
                   }} className="flex-1 p-4 bg-primary text-white font-bold rounded-2xl shadow-lg shadow-primary/20">Guardar</button>
@@ -959,7 +1208,7 @@ export default function App() {
                   <button onClick={() => setIsRoutineModalOpen(false)} className="flex-1 p-4 bg-slate-100 text-slate-600 font-bold rounded-2xl">Cancelar</button>
                   <button onClick={() => {
                     if (!newRoutine.activity) return;
-                    setRoutine([...routine, { id: Date.now().toString(), ...newRoutine }]);
+                    SocialService.saveHabit({ ...newRoutine, completed: false, type: 'routine' });
                     setIsRoutineModalOpen(false);
                     setNewRoutine({ time: '07:00', activity: '', type: routineCategories[0]?.id || 'rest' });
                   }} className="flex-1 p-4 bg-primary text-white font-bold rounded-2xl shadow-lg shadow-primary/20">Guardar</button>
@@ -1329,11 +1578,14 @@ export default function App() {
                       </button>
                       <button 
                         onClick={() => {
-                          setIsAuthenticated(false);
-                          setIsProfileOpen(false);
+                          signOut(auth).then(() => {
+                            setIsAuthenticated(false);
+                            setIsProfileOpen(false);
+                          });
                         }}
                         className="w-full p-4 flex items-center gap-3 rounded-2xl hover:bg-rose-50 transition-colors text-rose-600 font-bold mt-4"
                       >
+                        <Lock size={20} className="text-rose-400" />
                         Cerrar Sesión
                       </button>
                     </div>
@@ -1433,6 +1685,190 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* AI Consultation Modal */}
+      <AnimatePresence>
+        {isAiConsultationOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setIsAiConsultationOpen(false);
+                setConsultationResponse('');
+                setActiveQueryType(null);
+              }}
+              className="absolute inset-0 bg-sunset-wine/40 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 40 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.9, opacity: 0, y: 40 }}
+              className="relative w-full max-w-sm glass-card pt-16 pb-10 px-8 bg-white shadow-2xl border-none space-y-8 rounded-[4rem] overflow-visible"
+            >
+              {/* Mascot Bubble - Floating prominently at top */}
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-20">
+                <motion.div 
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                  className="w-32 h-32 sunset-gradient p-1.5 rounded-[3.5rem] shadow-2xl shadow-sunset-orange/20"
+                >
+                  <div className="w-full h-full bg-white rounded-[3.2rem] flex items-center justify-center overflow-hidden">
+                    <div className="scale-[0.55]">
+                      <TimeMascot streak={streak} balance={balance} />
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+
+              <div className="text-center space-y-1 pt-4">
+                <h3 className="text-2xl font-black text-sunset-wine tracking-tight">
+                  Consulta {mascotName}
+                </h3>
+                <p className="text-[10px] font-black text-sunset-wine/20 uppercase tracking-[0.2em]">Sintonizando con tu tiempo</p>
+              </div>
+
+              <div className="bg-rose-50/50 rounded-[3rem] p-8 min-h-[160px] flex items-center justify-center text-center relative overflow-hidden transition-all duration-500">
+                {/* Decorative background element for the response box */}
+                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-sunset-orange/5 rounded-full blur-3xl" />
+                <AnimatePresence mode="wait">
+                  {isAiThinking ? (
+                    <motion.div
+                      key="thinking"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="flex flex-col items-center gap-4"
+                    >
+                      <div className="flex gap-2">
+                        <motion.div animate={{ scale: [1, 1.4, 1], opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 rounded-full bg-sunset-orange" />
+                        <motion.div animate={{ scale: [1, 1.4, 1], opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 rounded-full bg-sunset-orange" />
+                        <motion.div animate={{ scale: [1, 1.4, 1], opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 rounded-full bg-sunset-orange" />
+                      </div>
+                      <p className="text-[10px] font-black text-sunset-wine/30 uppercase tracking-[0.2em]">Analizando tu día...</p>
+                    </motion.div>
+                  ) : consultationResponse ? (
+                    <motion.div
+                      key="response"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="relative z-10"
+                    >
+                      <p className="text-[13px] font-black italic text-sunset-wine/70 leading-[1.6] tracking-tight">
+                        "{consultationResponse}"
+                      </p>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="prompt"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="relative z-10 w-full"
+                    >
+                      {activeQueryType === 'open' ? (
+                        <div className="space-y-4">
+                          <input 
+                            type="text"
+                            placeholder="Pregúntame lo que quieras..."
+                            className="w-full bg-white border-2 border-rose-100 p-5 rounded-[2rem] text-sm font-black text-sunset-wine placeholder:text-sunset-wine/10 focus:ring-4 focus:ring-sunset-orange/5 focus:border-sunset-orange/20 transition-all outline-none"
+                            value={userQuestion}
+                            onChange={(e) => setUserQuestion(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && consultAI('open')}
+                            autoFocus
+                          />
+                          <motion.button 
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => consultAI('open')}
+                            className="w-full sunset-gradient text-white text-[10px] font-black uppercase tracking-[0.2em] py-4 rounded-[1.5rem] shadow-xl shadow-sunset-orange/20"
+                          >
+                            Consultar Ahora
+                          </motion.button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-3">
+                          <Users size={24} className="text-sunset-wine/5 mb-2" />
+                          <p className="text-[10px] font-black text-sunset-wine/20 uppercase tracking-[0.3em] max-w-[150px]">
+                            Selecciona un enfoque arriba
+                          </p>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => consultAI('why')}
+                    className={`py-5 rounded-[2.2rem] flex flex-col items-center gap-2 transition-all group ${
+                      activeQueryType === 'why' 
+                        ? 'sunset-gradient text-white shadow-xl shadow-sunset-orange/20' 
+                        : 'bg-rose-50 text-sunset-wine hover:bg-rose-100'
+                    }`}
+                  >
+                    <HelpCircle size={16} className={activeQueryType === 'why' ? 'text-white' : 'text-sunset-orange'} />
+                    <span className="text-[9px] font-black uppercase tracking-widest">¿Por qué?</span>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setActiveQueryType('open')}
+                    className={`py-5 rounded-[2.2rem] flex flex-col items-center gap-2 transition-all group ${
+                      activeQueryType === 'open' 
+                        ? 'sunset-gradient text-white shadow-xl shadow-sunset-orange/20' 
+                        : 'bg-rose-50 text-sunset-wine hover:bg-rose-100'
+                    }`}
+                  >
+                    <Search size={16} className={activeQueryType === 'open' ? 'text-white' : 'text-sunset-orange'} />
+                    <span className="text-[9px] font-black uppercase tracking-widest">Preguntar</span>
+                  </motion.button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'improve', label: 'Mejorar', icon: <TrendingUp size={16} /> },
+                    { id: 'summary', label: 'Resumen', icon: <FileText size={16} /> }
+                  ].map((option) => (
+                    <motion.button
+                      key={option.id}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => consultAI(option.id as any)}
+                      className={`flex flex-col items-center gap-2 py-5 rounded-[2.2rem] transition-all group ${
+                        activeQueryType === option.id 
+                          ? 'sunset-gradient text-white shadow-xl' 
+                          : 'bg-rose-50 text-sunset-wine hover:bg-rose-100'
+                      }`}
+                    >
+                      <div className={activeQueryType === option.id ? 'text-white' : 'text-sunset-orange'}>
+                        {option.icon}
+                      </div>
+                      <span className="text-[9px] font-black uppercase tracking-widest">{option.label}</span>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+
+              <button 
+                onClick={() => {
+                  setIsAiConsultationOpen(false);
+                  setConsultationResponse('');
+                  setActiveQueryType(null);
+                }}
+                className="w-full text-[10px] font-black uppercase tracking-[0.4em] text-sunset-wine/20 py-2 hover:text-sunset-wine/40 transition-colors"
+              >
+                Cerrar Volver
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Wellness Modal */}
       <AnimatePresence>
         {isWellnessModalOpen && (
@@ -1509,12 +1945,7 @@ export default function App() {
                   <button 
                     onClick={() => {
                       if (!newWellness.label) return;
-                      const reminder: WellnessReminder = {
-                        id: Date.now().toString(),
-                        ...newWellness,
-                        completed: false
-                      };
-                      setWellness([...wellness, reminder]);
+                      SocialService.saveHabit({ ...newWellness, completed: false, type: 'wellness' });
                       setIsWellnessModalOpen(false);
                       setNewWellness({ type: 'water', label: '', time: '10:00' });
                     }}
@@ -1677,6 +2108,12 @@ export default function App() {
           label="Ritmo" 
         />
         <NavButton 
+          active={activeTab === 'circles'} 
+          onClick={() => setActiveTab('circles')} 
+          icon={<Users size={24} />} 
+          label="Comunidad" 
+        />
+        <NavButton 
           active={activeTab === 'stats'} 
           onClick={() => setActiveTab('stats')} 
           icon={<BarChart3 size={24} />} 
@@ -1717,6 +2154,44 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
   const [showPasswordLogin, setShowPasswordLogin] = useState(false);
   const [showPasswordRegister, setShowPasswordRegister] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  
+  // Form state
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleGoogleLogin = async () => {
+    setError('');
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      onLogin();
+    } catch (error: any) {
+      setError(error.message);
+    }
+  };
+
+  const handleAppleLogin = () => {
+    alert("Soporte para Apple viene pronto. Actívalo en tu consola de Firebase Authentication.");
+  };
+
+  const handleEmailAuth = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      if (view === 'login') {
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+      }
+      onLogin();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-rose-50 to-sky-100 flex items-center justify-center p-6 relative overflow-hidden font-sans">
@@ -1801,7 +2276,7 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
 
               <div className="grid grid-cols-2 gap-4">
                 <button 
-                  onClick={onLogin}
+                  onClick={handleGoogleLogin}
                   className="flex items-center justify-center gap-3 py-5 bg-white/40 border border-white/40 rounded-[2rem] hover:bg-white/60 transition-all group"
                 >
                   <svg className="w-6 h-6" viewBox="0 0 24 24">
@@ -1813,7 +2288,7 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
                   <span className="text-sm font-black text-sunset-wine">Google</span>
                 </button>
                 <button 
-                  onClick={onLogin}
+                  onClick={handleAppleLogin}
                   className="flex items-center justify-center gap-3 py-5 bg-white/40 border border-white/40 rounded-[2rem] hover:bg-white/60 transition-all group"
                 >
                   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
@@ -1851,6 +2326,12 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
               </button>
             </div>
 
+            {error && (
+              <div className="mb-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl">
+                <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{error}</p>
+              </div>
+            )}
+
             {view === 'login' ? (
               <div className="space-y-8">
                 <div>
@@ -1864,7 +2345,9 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
                     <div className="relative">
                       <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
                       <input 
-                        type="text" 
+                        type="email" 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
                         placeholder="nombre@ejemplo.com" 
                         className="w-full pl-14 pr-5 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
                       />
@@ -1877,6 +2360,8 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
                       <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
                       <input 
                         type={showPasswordLogin ? "text" : "password"} 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••" 
                         className="w-full pl-14 pr-14 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
                       />
@@ -1909,10 +2394,11 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
                   </div>
 
                   <button 
-                    onClick={onLogin}
-                    className="w-full py-5 sunset-gradient text-white font-black rounded-[2rem] shadow-2xl shadow-sunset-orange/30 flex items-center justify-center gap-3 group hover:scale-[1.02] active:scale-[0.98] transition-all mt-6 text-lg"
+                    onClick={handleEmailAuth}
+                    disabled={loading}
+                    className="w-full py-5 sunset-gradient text-white font-black rounded-[2rem] shadow-2xl shadow-sunset-orange/30 flex items-center justify-center gap-3 group hover:scale-[1.02] active:scale-[0.98] transition-all mt-6 text-lg disabled:opacity-50"
                   >
-                    Entrar
+                    {loading ? 'Cargando...' : 'Entrar'}
                     <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>
@@ -1943,6 +2429,8 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
                       <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
                       <input 
                         type="email" 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
                         placeholder="correo@ejemplo.com" 
                         className="w-full pl-14 pr-5 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
                       />
@@ -1955,6 +2443,8 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
                       <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
                       <input 
                         type={showPasswordRegister ? "text" : "password"} 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         placeholder="Mínimo 8 caracteres" 
                         className="w-full pl-14 pr-14 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
                       />
@@ -1975,10 +2465,11 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
                   </div>
 
                   <button 
-                    onClick={onLogin}
-                    className="w-full py-5 sunset-gradient text-white font-black rounded-[2rem] shadow-2xl shadow-sunset-orange/30 flex items-center justify-center gap-3 group hover:scale-[1.02] active:scale-[0.98] transition-all mt-6 text-lg"
+                    onClick={handleEmailAuth}
+                    disabled={loading}
+                    className="w-full py-5 sunset-gradient text-white font-black rounded-[2rem] shadow-2xl shadow-sunset-orange/30 flex items-center justify-center gap-3 group hover:scale-[1.02] active:scale-[0.98] transition-all mt-6 text-lg disabled:opacity-50"
                   >
-                    Unirse
+                    {loading ? 'Cargando...' : 'Unirse'}
                     <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>

@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Users ---
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && (
+        resource.data.uid == request.auth.uid || 
+        (request.query.limit <= 1 && request.query.filters.size() >= 1) // Allow searching by kairosId
+      ); 
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'photoURL', 'mascotName', 'streak', 'balance', 'lastActive', 'kairosId']);
+      
+      function isValidUser(data) {
+        return data.uid == request.auth.uid &&
+               data.kairosId is string && data.kairosId.size() <= 20 &&
+               data.name is string && data.name.size() <= 100 &&
+               data.mascotName is string && data.mascotName.size() <= 50 &&
+               data.streak is number &&
+               data.balance is number;
+      }
+    }
+
+    // --- Friendships ---
+    match /friendships/{friendshipId} {
+      allow get: if isSignedIn() && request.auth.uid in resource.data.userIds;
+      allow list: if isSignedIn() && request.auth.uid in resource.data.userIds;
+      allow create: if isSignedIn() && request.auth.uid in incoming().userIds && incoming().userIds.size() == 2;
+      allow delete: if isSignedIn() && request.auth.uid in existing().userIds;
+    }
+
+    // --- Interactions ---
+    match /interactions/{interactionId} {
+      allow get: if isSignedIn() && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId);
+      allow list: if isSignedIn() && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId);
+      allow create: if isSignedIn() && request.auth.uid == incoming().fromUserId && 
+                    exists(/databases/$(database)/documents/users/$(incoming().toUserId)); // Must be friend (simplified)
+    }
+
+    // --- Tasks ---
+    match /tasks/{taskId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid && (request.method == 'DELETE' || incoming().userId == request.auth.uid);
+    }
+
+    // --- Habits ---
+    match /habits/{habitId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid && (request.method == 'DELETE' || incoming().userId == request.auth.uid);
+    }
+  }
+}
