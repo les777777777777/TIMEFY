@@ -35,7 +35,7 @@ export interface RoutineItem {
 
 export interface WellnessReminder {
   id: string;
-  type: 'water' | 'food' | 'sleep' | 'rest';
+  type: 'water' | 'food' | 'sleep' | 'rest' | 'medicine';
   label: string;
   time: string;
   completed: boolean;

@@ -39,7 +39,9 @@ import {
   BarChart2,
   HelpCircle,
   FileText,
-  TrendingUp
+  TrendingUp,
+  Sparkles,
+  X
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -68,7 +70,6 @@ import {
 import { auth } from './lib/firebase';
 import { SocialService, UserProfile } from './services/socialService';
 import { FriendsView } from './components/FriendsView';
-import { AIService, UserSnapshot, AIQueryType } from './services/aiService';
 
 // Mock Data
 const DEFAULT_TASK_CATEGORIES: Category[] = [
@@ -167,12 +168,8 @@ const MOCK_WELLNESS: WellnessReminder[] = [
   { id: '2', type: 'rest', label: 'Descanso visual', time: '11:30', completed: false },
   { id: '3', type: 'food', label: 'Almuerzo saludable', time: '13:00', completed: false },
   { id: '4', type: 'sleep', label: 'Preparar sueño', time: '22:00', completed: false },
-  { id: '5', type: 'water', label: 'Hidratación tarde', time: '16:00', completed: false },
-  { id: '6', type: 'rest', label: 'Estiramiento activo', time: '15:00', completed: false },
-  { id: '7', type: 'food', label: 'Snack de frutos secos', time: '17:30', completed: false },
-  { id: '8', type: 'rest', label: 'Meditación breve', time: '09:00', completed: false },
-  { id: '9', type: 'water', label: 'Agua pre-cena', time: '19:30', completed: false },
-  { id: '10', type: 'sleep', label: 'Sin pantallas', time: '21:30', completed: false },
+  { id: '5', type: 'medicine', label: 'Vitamina C', time: '09:00', completed: false },
+  { id: '6', type: 'water', label: 'Hidratación tarde', time: '16:00', completed: false },
 ];
 
 const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6'];
@@ -184,6 +181,40 @@ const MOCK_NOTIFICATIONS = [
 ];
 
 import { TimeMascot } from './components/TimeMascot';
+import { AIService, UserSnapshot, AIQueryType } from './services/aiService';
+
+const SectionSummary = ({ 
+  title, 
+  stats, 
+  delay = 0 
+}: { 
+  title: string, 
+  stats: { label: string, count: number, color: string, icon: React.ReactNode }[],
+  delay?: number
+}) => (
+  <motion.div 
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay }}
+    className="bg-white/40 backdrop-blur-xl rounded-[2.5rem] p-6 border border-white/60 shadow-sm space-y-4"
+  >
+    <div className="flex items-center gap-2">
+      <div className="w-1.5 h-1.5 rounded-full bg-deep-teal/20" />
+      <h3 className="text-[10px] font-black text-deep-teal/40 uppercase tracking-[0.2em]">{title}</h3>
+    </div>
+    <div className="grid grid-cols-3 gap-3">
+      {stats.map((stat, i) => (
+        <div key={i} className="flex flex-col gap-2">
+          <div className={`w-full py-3 rounded-2xl ${stat.color} flex flex-col items-center gap-0.5`}>
+            <div className="opacity-60 scale-75">{stat.icon}</div>
+            <span className="text-sm font-black tracking-tight">{stat.count}</span>
+          </div>
+          <p className="text-[7px] font-black text-deep-teal/30 uppercase text-center tracking-[0.2em]">{stat.label}</p>
+        </div>
+      ))}
+    </div>
+  </motion.div>
+);
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -192,9 +223,12 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  const [streak, setStreak] = useState(5);
-  const [mascotName, setMascotName] = useState(localStorage.getItem('mascotName') || 'Kairo');
-  const [lastCheckIn, setLastCheckIn] = useState<string | null>(localStorage.getItem('lastCheckIn'));
+  const [streak, setStreak] = useState(0);
+  const [mascotName, setMascotName] = useState('Kairo');
+  const [lastCheckIn, setLastCheckIn] = useState<string | null>(null);
+
+  const [enabledHabitTypes, setEnabledHabitTypes] = useState<WellnessReminder['type'][]>(['water', 'food', 'rest', 'medicine']);
+  const [isHabitConfigOpen, setIsHabitConfigOpen] = useState(false);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [wellness, setWellness] = useState<WellnessReminder[]>([]);
@@ -218,34 +252,41 @@ export default function App() {
   useEffect(() => {
     let unsubscribeTasks: () => void;
     let unsubscribeHabits: () => void;
+    let unsubscribeProfile: () => void;
 
     if (isAuthenticated && user) {
+      // Initialize profile if it doesn't exist
+      SocialService.syncProfile({});
+
+      // Subscribe to Profile
+      unsubscribeProfile = SocialService.subscribeToProfile((profile) => {
+        if (profile) {
+          setStreak(profile.streak || 0);
+          setMascotName(profile.mascotName || 'Kairo');
+        }
+      });
+
       // Subscribe to Tasks
       unsubscribeTasks = SocialService.subscribeToTasks((syncedTasks) => {
         if (syncedTasks.length > 0) {
           setTasks(syncedTasks as Task[]);
-        } else {
-          // If Firestore is empty, seed with mock but save to cloud
-          MOCK_TASKS.forEach(t => SocialService.saveTask(t));
         }
       });
 
       // Subscribe to Wellness/Routine (Habits)
       unsubscribeHabits = SocialService.subscribeToHabits((syncedHabits) => {
-        const wellnessItems = syncedHabits.filter(h => h.type === 'wellness');
-        const routineItems = syncedHabits.filter(h => h.type === 'routine');
+        const wellnessItems = syncedHabits.filter(h => h.category === 'wellness');
+        const routineItems = syncedHabits.filter(h => h.category === 'routine');
         
         if (wellnessItems.length > 0) setWellness(wellnessItems as WellnessReminder[]);
-        else MOCK_WELLNESS.forEach(w => SocialService.saveHabit({...w, type: 'wellness'}));
-
         if (routineItems.length > 0) setRoutine(routineItems as RoutineItem[]);
-        else MOCK_ROUTINE.forEach(r => SocialService.saveHabit({...r, type: 'routine'}));
       });
     }
 
     return () => {
       if (unsubscribeTasks) unsubscribeTasks();
       if (unsubscribeHabits) unsubscribeHabits();
+      if (unsubscribeProfile) unsubscribeProfile();
     };
   }, [isAuthenticated, user]);
 
@@ -289,7 +330,48 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // Dynamic Background based on time
+  const [statsPeriod, setStatsPeriod] = useState<'week' | 'month'>('week');
+
+  const MOCK_MONTH_STATS = [
+    { day: 'Sem 1', value: 45 },
+    { day: 'Sem 2', value: 75 },
+    { day: 'Sem 3', value: 60 },
+    { day: 'Sem 4', value: 95 },
+  ];
+
+  const statsData = statsPeriod === 'week' ? MOCK_STATS : MOCK_MONTH_STATS;
+
+  // Toggle Alarm
+  const toggleAlarm = (id: string) => {
+    setAlarms(alarms.map(alarm => alarm.id === id ? { ...alarm, enabled: !alarm.enabled } : alarm));
+  };
+  const handleQuickHabitToggle = (type: WellnessReminder['type']) => {
+    // Find the first uncompleted habit of this type
+    const habit = wellness.find(w => w.type === type && !w.completed);
+    
+    if (habit) {
+      toggleWellness(habit.id);
+    } else {
+      // If all are completed or none exist, toggle the last completed one to "uncomplete" 
+      // or just create a new one? Toggling is better for the prompt's "marcar acciones rápidas".
+      const lastHabit = [...wellness].reverse().find(w => w.type === type);
+      if (lastHabit) {
+        toggleWellness(lastHabit.id);
+      } else {
+        // Create a new one if none exists
+        const newH: WellnessReminder = {
+          id: 'temp_' + Math.random().toString(36).substr(2, 9),
+          type,
+          label: type === 'water' ? 'Beber agua' : type === 'food' ? 'Nutrición' : type === 'medicine' ? 'Medicación' : 'Descanso',
+          time: currentTime.getHours() + ':' + currentTime.getMinutes().toString().padStart(2, '0'),
+          completed: true
+        };
+        SocialService.saveHabit({ ...newH, category: 'wellness' });
+      }
+    }
+    setTimeout(refreshAIThought, 500);
+  };
+
   const backgroundStyle = useMemo(() => {
     const hour = currentTime.getHours();
     if (hour >= 5 && hour < 12) return 'from-amber-50 via-orange-50 to-sky-100'; // Morning
@@ -331,6 +413,7 @@ export default function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
   const [preferences, setPreferences] = useState(() => {
@@ -361,9 +444,15 @@ export default function App() {
   const [activeQueryType, setActiveQueryType] = useState<AIQueryType | null>(null);
   const [userQuestion, setUserQuestion] = useState('');
 
-  const refreshAIThought = async () => {
-    if (isAiThinking) return;
+  const lastAIRequestTime = React.useRef<number>(0);
+  const aiCooldownMs = 8000; // 8 second cooldown for random thoughts
+
+  const refreshAIThought = async (force: boolean = false) => {
+    const now = Date.now();
+    if (!force && (isAiThinking || now - lastAIRequestTime.current < aiCooldownMs)) return;
+    
     setIsAiThinking(true);
+    lastAIRequestTime.current = now;
     
     const snapshot: UserSnapshot = {
       tasksCompleted: tasks.filter(t => t.completed).length,
@@ -378,13 +467,19 @@ export default function App() {
       state: balance > 70 ? 'constant' : balance < 30 ? 'inactive' : 'active'
     };
 
-    const thought = await AIService.getMascotThought(snapshot);
-    setAiThought(thought);
-    localStorage.setItem('kairos_ai_thought', thought);
-    setIsAiThinking(false);
+    try {
+      const thought = await AIService.getMascotThought(snapshot);
+      setAiThought(thought);
+      localStorage.setItem('kairos_ai_thought', thought);
+    } catch (e) {
+      console.error("AI Thought error", e);
+    } finally {
+      setIsAiThinking(false);
+    }
   };
 
   const consultAI = async (type: AIQueryType) => {
+    if (isAiThinking) return;
     setIsAiThinking(true);
     setActiveQueryType(type);
     
@@ -413,6 +508,7 @@ export default function App() {
       setConsultationResponse("Hubo un error al sintonizar con Kairo. Inténtalo de nuevo.");
     } finally {
       setIsAiThinking(false);
+      lastAIRequestTime.current = Date.now(); // Reset cooldown after manual consultation
       if (type === 'open') setUserQuestion('');
     }
   };
@@ -490,7 +586,7 @@ export default function App() {
   const toggleWellness = (id: string) => {
     const item = wellness.find(w => w.id === id);
     if (item) {
-      SocialService.saveHabit({ ...item, completed: !item.completed, type: 'wellness' });
+      SocialService.saveHabit({ ...item, completed: !item.completed, category: 'wellness' });
     }
     setTimeout(refreshAIThought, 1000);
   };
@@ -498,7 +594,7 @@ export default function App() {
   const toggleRoutine = (id: string) => {
     const item = routine.find(r => r.id === id);
     if (item) {
-      SocialService.saveHabit({ ...item, completed: !item.completed, type: 'routine' });
+      SocialService.saveHabit({ ...item, completed: !item.completed, category: 'routine' });
     }
     setTimeout(refreshAIThought, 1000);
   };
@@ -522,217 +618,293 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard':
         return (
-          <div className="space-y-8 pb-32">
-            <header className="flex justify-between items-center px-8 pt-12">
-              <div className="space-y-1">
-                <motion.div 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center gap-2"
-                >
-                  <div className="w-10 h-10 sunset-gradient rounded-2xl flex items-center justify-center shadow-xl shadow-sunset-orange/20">
-                    <Clock size={20} className="text-white" />
-                  </div>
-                  <span className="text-xl font-black tracking-tighter text-sunset-wine uppercase">Kairos</span>
-                </motion.div>
-                <motion.h1 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 }}
-                  className={`text-5xl font-black tracking-tight ${isNight ? 'text-white' : 'text-sunset-wine'}`}
-                >
-                  Hola, <span className="text-sunset-orange">{userProfile.name.split(' ')[0]}</span>
-                </motion.h1>
-                <p className={`${isNight ? 'text-slate-300' : 'text-sunset-wine/60'} font-bold text-lg`}>Tu tiempo, tu esencia.</p>
-              </div>
-              <div className="flex gap-4 items-center">
-                <motion.button 
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setIsNotificationsOpen(true)}
-                  className="p-4 rounded-[2rem] bg-white/40 backdrop-blur-3xl border border-white/40 shadow-xl relative"
-                >
-                  <Bell size={24} className="text-sunset-wine" />
-                  {notifications.some(n => !n.read) && (
-                    <span className="absolute top-3 right-3 w-3.5 h-3.5 bg-mint border-2 border-white rounded-full mint-glow" />
-                  )}
-                </motion.button>
-                <motion.button 
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setIsProfileOpen(true)}
-                  className="w-14 h-14 rounded-[2rem] overflow-hidden border-2 border-white shadow-2xl"
-                >
-                  <img src={userProfile.photo} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                </motion.button>
-              </div>
-            </header>
+          <div className="space-y-6 pb-40">
+            {/* Immersive Header Card */}
+            <section className="px-6 pt-12">
+              <header className="mb-8 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sunset-orange animate-pulse" />
+                  <p className="text-[10px] font-black text-sunset-orange uppercase tracking-[0.3em] italic">Resumen</p>
+                </div>
+                <h2 className="text-4xl font-black text-deep-teal tracking-tight leading-none italic">Mi Centro</h2>
+              </header>
 
-            {/* Time Mascot - The Living Energy of Time */}
-            <section className="px-8">
-              <div className="flex justify-center mb-2">
-                <button 
-                  onClick={() => setIsMascotRenameOpen(true)}
-                  className="px-4 py-1 bg-white/40 backdrop-blur-xl border border-white/40 rounded-full text-[10px] font-black text-sunset-wine/60 uppercase tracking-widest hover:bg-white/60 transition-all"
-                >
-                  {mascotName}
-                </button>
-              </div>
               <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="glass-card overflow-hidden relative border-none bg-gradient-to-b from-white/60 to-white/20 p-0"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-sunset-pink rounded-[3.5rem] p-8 text-white relative overflow-hidden h-[240px]"
               >
-                <div className="absolute top-10 left-10 z-20 flex flex-col gap-3">
-                  <div className="flex items-center gap-2 bg-white/60 backdrop-blur-xl px-4 py-2 rounded-full w-fit border border-white/40 shadow-sm">
-                    <Zap size={16} className="text-sunset-orange" fill="currentColor" />
-                    <span className="text-[10px] font-black text-sunset-wine uppercase tracking-[0.2em]">{streak} Días de Racha</span>
-                  </div>
-                  <div className="flex items-center gap-4 mt-1">
-                    <div className="h-2.5 w-40 bg-white/40 rounded-full overflow-hidden border border-white/20">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${balance}%` }}
-                        className="h-full sunset-gradient"
-                      />
+                {/* Abstract shapes behind */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-12 translate-x-12 blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/5 rounded-full translate-y-12 -translate-x-12 blur-2xl" />
+                
+                <div className="relative z-10 flex flex-col h-full justify-between">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <p className="text-white/80 font-bold text-sm">Hola, {userProfile.name.split(' ')[0]} 👋</p>
+                      <h1 className="text-2xl font-black">{currentTime.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}</h1>
                     </div>
-                    <span className="text-xs font-black text-sunset-wine/40 uppercase tracking-widest">{balance}% Armonía</span>
-                  </div>
-                </div>
-                
-                <div 
-                  className="cursor-pointer group relative"
-                  onClick={() => setIsAiConsultationOpen(true)}
-                >
-                  <TimeMascot streak={streak} balance={balance} />
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="bg-white/40 backdrop-blur-xl px-4 py-2 rounded-full border border-white/40 text-[9px] font-black uppercase tracking-widest text-sunset-wine shadow-xl">
-                      Consultar
+                    <div className="flex gap-4 items-center">
+                      <motion.button 
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        className="bg-black/90 px-5 py-2.5 rounded-[2rem] text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center gap-2"
+                      >
+                        <Zap size={14} className="text-sunset-orange" fill="currentColor" />
+                        Demo
+                      </motion.button>
+                      <motion.button 
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setIsProfileOpen(true)}
+                        className="w-12 h-12 rounded-[1.5rem] border-2 border-white/40 overflow-hidden"
+                      >
+                        <img src={userProfile.photo} alt="P" className="w-full h-full object-cover" />
+                      </motion.button>
                     </div>
                   </div>
-                </div>
-                
-                {/* AI Thought Bubble - Subtle & Meaningful */}
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  key={aiThought}
-                  className="absolute bottom-10 left-10 right-10 flex flex-col items-center z-30 pointer-events-none"
-                >
-                  <div className="bg-white/80 backdrop-blur-2xl px-6 py-3 rounded-full border border-white/60 shadow-xl shadow-sunset-orange/5 max-w-[80%] text-center">
-                    <p className="text-[11px] font-black italic text-sunset-wine/60 leading-snug tracking-tight">
-                      {isAiThinking ? '...' : `"${aiThought}"`}
-                    </p>
+
+                  <div className="space-y-4">
+                    <div className="bg-white/20 backdrop-blur-3xl rounded-[2.5rem] p-6 border border-white/20">
+                      <div className="flex justify-between items-center">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 italic">Nivel 22</p>
+                          <h2 className="text-xl font-black leading-none">Mi Esencia Kairos</h2>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="flex items-center gap-2 bg-white/20 px-3 py-1.5 rounded-full border border-white/10">
+                            <Zap size={14} className="text-sunset-orange" />
+                            <span className="text-[9px] font-black uppercase tracking-widest leading-none mt-0.5">Activo</span>
+                          </div>
+                          <div className="flex items-center gap-2 bg-white/20 px-3 py-1.5 rounded-full border border-white/10">
+                            <TrendingUp size={14} className="text-white" />
+                            <span className="text-[9px] font-black uppercase tracking-widest leading-none mt-0.5">#{streak}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </motion.div>
-                
-                {/* Debug controls for the user to see evolution */}
-                <div className="absolute bottom-8 right-10 flex gap-4 opacity-0 hover:opacity-100 transition-opacity z-30">
-                  <button 
-                    onClick={() => setStreak(Math.max(0, streak - 1))} 
-                    className="w-12 h-12 flex items-center justify-center bg-white/80 backdrop-blur-xl shadow-2xl rounded-[1.5rem] text-sunset-wine hover:bg-white transition-all"
-                  >
-                    <Minus size={20} />
-                  </button>
-                  <button 
-                    onClick={() => setStreak(streak + 1)} 
-                    className="w-12 h-12 flex items-center justify-center bg-white/80 backdrop-blur-xl shadow-2xl rounded-[1.5rem] text-sunset-wine hover:bg-white transition-all"
-                  >
-                    <Plus size={20} />
-                  </button>
                 </div>
               </motion.div>
             </section>
 
-            {/* Floating Quick Actions */}
-            <section className="px-8 grid grid-cols-2 gap-6">
+            {/* Bento Grid Content */}
+            <section className="px-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Main Mascot Card */}
               <motion.div 
-                whileHover={{ y: -8 }}
-                className="glass-card p-8 flex flex-col gap-6 bg-gradient-to-br from-white/60 to-mint/10 border-none shadow-2xl"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-white rounded-[3.5rem] p-4 shadow-xl shadow-black/[0.02] border border-slate-100 flex flex-col justify-between h-[420px] relative overflow-hidden"
               >
-                <div className="w-14 h-14 bg-mint/20 rounded-[1.5rem] flex items-center justify-center text-mint shadow-inner">
-                  <Heart size={28} fill="currentColor" />
+                <div className="absolute top-0 right-0 p-8 opacity-5">
+                   <div className="w-32 h-32 bg-deep-teal rounded-full" />
                 </div>
-                <div>
-                  <h3 className="text-xl font-black text-sunset-wine tracking-tight">Bienestar</h3>
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Tu equilibrio vital</p>
+                
+                <div className="relative z-10 flex flex-col h-full">
+                  {/* Mascot and Progress Ring */}
+                   <div className="relative flex-1 flex items-center justify-center scale-90">
+                      <TimeMascot streak={streak} balance={balance} />
+                   </div>
+                   
+                   <div className="bg-deep-teal rounded-[3rem] p-8 text-white flex justify-between items-center">
+                      <div className="space-y-1">
+                         <p className="text-[10px] font-black tracking-[0.2em] opacity-60 uppercase italic">Sincronía</p>
+                         <h3 className="text-2xl font-black leading-none">{balance}%</h3>
+                      </div>
+                      <motion.button
+                        whileHover={{ scale: 1.1, rotate: 90 }}
+                        className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center border border-white/10"
+                      >
+                         <ArrowRight size={20} />
+                      </motion.button>
+                   </div>
                 </div>
-                <button 
-                  onClick={() => setActiveTab('wellness')}
-                  className="mt-2 text-[10px] font-black text-sunset-orange uppercase tracking-[0.3em] flex items-center gap-2 group"
-                >
-                  Explorar <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                </button>
               </motion.div>
 
-              <motion.div 
-                whileHover={{ y: -8 }}
-                className="glass-card p-8 flex flex-col gap-6 bg-gradient-to-br from-white/60 to-sunset-orange/10 border-none shadow-2xl"
-              >
-                <div className="w-14 h-14 bg-sunset-orange/20 rounded-[1.5rem] flex items-center justify-center text-sunset-orange shadow-inner">
-                  <Zap size={28} fill="currentColor" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-black text-sunset-wine tracking-tight">Productividad</h3>
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Tus metas de hoy</p>
-                </div>
-                <button 
-                  onClick={() => setActiveTab('tasks')}
-                  className="mt-2 text-[10px] font-black text-sunset-orange uppercase tracking-[0.3em] flex items-center gap-2 group"
+              {/* Stats and Learning cards column */}
+              <div className="flex flex-col gap-6">
+                {/* Secondary Stat Card */}
+                <motion.div 
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-bento-bg rounded-[3.5rem] p-8 shadow-xl shadow-black/[0.02] border border-slate-100 flex flex-col gap-8"
                 >
-                  Gestionar <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                </button>
-              </motion.div>
+                  <div className="flex justify-between items-start">
+                     <h3 className="text-xl font-black text-deep-teal tracking-tighter">Plan de Armonía</h3>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                     {[
+                       { 
+                         label: 'Total', 
+                         count: tasks.length + routine.length + wellness.length, 
+                         color: 'bg-mint/10 text-mint', 
+                         icon: <Clock size={16} /> 
+                       },
+                       { 
+                         label: 'Hecho', 
+                         count: tasks.filter(t => t.completed).length + routine.filter(r => r.completed).length + wellness.filter(w => w.completed).length, 
+                         color: 'bg-sunset-pink/10 text-sunset-pink', 
+                         icon: <Check size={16} /> 
+                       },
+                       { 
+                         label: 'Próximo', 
+                         count: tasks.filter(t => !t.completed).length + routine.filter(r => !r.completed).length + wellness.filter(w => !w.completed).length, 
+                         color: 'bg-sunset-orange/10 text-sunset-orange', 
+                         icon: <Zap size={16} /> 
+                       }
+                     ].map((stat, i) => (
+                         <div key={i} className="flex flex-col gap-3">
+                            <div className={`w-full py-4 rounded-3xl ${stat.color} flex flex-col items-center gap-1`}>
+                               <div className="opacity-70">{stat.icon}</div>
+                               <span className="text-lg font-black">{stat.count}</span>
+                            </div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase text-center tracking-widest">{stat.label}</p>
+                         </div>
+                      ))}
+                  </div>
+
+                  <div className="bg-white rounded-[2.5rem] p-6 shadow-inner relative">
+                    <div className="flex justify-between items-center mb-4">
+                       <h4 className="text-sm font-black text-deep-teal tracking-tight">Evolución de Energía</h4>
+                       <span className="text-[10px] font-black text-sunset-orange uppercase tracking-widest">{balance}% prom.</span>
+                    </div>
+                    {/* Simplified Graph Visual */}
+                    <div className="h-20 w-full flex items-end gap-2 px-2">
+                       {[40, 70, 45, 90, 60, 80, 50].map((h, i) => (
+                          <motion.div 
+                            key={i}
+                            initial={{ height: 0 }}
+                            animate={{ height: `${h}%` }}
+                            transition={{ delay: 0.5 + (i * 0.1) }}
+                            className={`flex-1 rounded-full ${i === 3 ? 'bg-sunset-pink shadow-[0_0_15px_rgba(255,117,151,0.4)]' : 'bg-slate-200'}`}
+                          />
+                       ))}
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* State Interpretation Card */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="bg-deep-teal rounded-[3.5rem] p-8 text-white relative overflow-hidden"
+                >
+                   <div className="relative z-10 flex justify-between items-center">
+                      <div className="space-y-4 max-w-[70%]">
+                         <div className="space-y-1">
+                            <p className="text-[9px] font-black text-mint uppercase tracking-[0.3em]">IA KAIROS</p>
+                            <h3 className="text-lg font-black leading-tight italic opacity-90">
+                              {balance > 60 ? 'Toda tu esencia hoy fluye como un río tranquilo.' : 'Es tiempo de reconectar y fluir más lento.'}
+                            </h3>
+                         </div>
+                         <motion.button 
+                           whileHover={{ x: 5 }}
+                           onClick={() => setIsAiConsultationOpen(true)}
+                           className="text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 text-white/50 hover:text-mint transition-colors"
+                         >
+                           Explorar Más <ArrowRight size={14} />
+                         </motion.button>
+                      </div>
+                      <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center p-3 border border-white/10">
+                         <div className="w-full h-full rounded-full border-4 border-mint/40 border-t-mint animate-spin-slow rotate-[45deg]" />
+                      </div>
+                   </div>
+                </motion.div>
+              </div>
             </section>
           </div>
         );
       case 'tasks':
         return (
-          <div className="space-y-8 pb-32 px-8 pt-12">
-            <header className="flex justify-between items-center">
+          <div className="space-y-8 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar">
+            <header className="flex justify-between items-end">
               <div className="space-y-1">
-                <h2 className="text-4xl font-black text-sunset-wine tracking-tight">Tareas</h2>
-                <p className="text-sunset-wine/40 font-bold">Tus metas, tu ritmo.</p>
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sunset-pink animate-pulse" />
+                  <p className="text-[10px] font-black text-sunset-pink uppercase tracking-[0.3em] italic">Proceso</p>
+                </div>
+                <h2 className="text-4xl font-black text-deep-teal tracking-tight leading-none italic">Metas</h2>
               </div>
               <motion.button 
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setIsTaskModalOpen(true)}
-                className="w-14 h-14 sunset-gradient text-white rounded-[2rem] flex items-center justify-center shadow-xl shadow-sunset-orange/30"
+                className="w-16 h-16 bg-deep-teal text-white rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-deep-teal/20"
               >
-                <Plus size={28} />
+                <Plus size={32} />
               </motion.button>
             </header>
 
-            <div className="space-y-4">
+            {/* Harmony Summary for Tasks */}
+            <SectionSummary 
+              title="Plan de Armonía: Metas"
+              stats={[
+                { label: 'Total', count: tasks.length, color: 'bg-mint/10 text-mint', icon: <Clock size={14} /> },
+                { label: 'Hecho', count: tasks.filter(t => t.completed).length, color: 'bg-sunset-pink/10 text-sunset-pink', icon: <Check size={14} /> },
+                { label: 'Próximo', count: tasks.filter(t => !t.completed).length, color: 'bg-sunset-orange/10 text-sunset-orange', icon: <Zap size={14} /> }
+              ]}
+            />
+
+            {/* Featured Course Card */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-[#d5e8e1] rounded-[3.5rem] p-8 relative overflow-hidden group min-h-[220px] flex flex-col justify-between"
+            >
+               <div className="absolute top-0 right-0 p-6 opacity-20 transition-transform group-hover:scale-110 duration-500">
+                  <FileText size={140} className="rotate-12 text-deep-teal" />
+               </div>
+               <div className="space-y-4 relative z-10">
+                  <div className="bg-white/40 backdrop-blur-xl px-4 py-2 rounded-full w-fit border border-white/20">
+                     <span className="text-[10px] font-black uppercase tracking-widest text-deep-teal">Objetivo Semanal</span>
+                  </div>
+                  <h3 className="text-3xl font-black text-deep-teal tracking-tight leading-tight max-w-[200px]">Sincronía de Hábitos</h3>
+               </div>
+               <div className="flex gap-4 relative z-10 pt-4">
+                  <div className="flex flex-col">
+                     <span className="text-[10px] font-black text-deep-teal/40 uppercase tracking-widest leading-none">Lecciones</span>
+                     <span className="text-xl font-black text-deep-teal">#{tasks.length}</span>
+                  </div>
+                  <div className="flex flex-col">
+                     <span className="text-[10px] font-black text-deep-teal/40 uppercase tracking-widest leading-none">Minutos</span>
+                     <span className="text-xl font-black text-deep-teal">120m</span>
+                  </div>
+               </div>
+            </motion.div>
+
+            <div className="grid grid-cols-1 gap-4">
               {tasks.map((task) => (
                 <motion.div 
                   key={task.id}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="glass-card p-6 flex items-center justify-between bg-white/60 backdrop-blur-xl border-none shadow-lg"
+                  onClick={() => toggleTask(task.id)}
+                  className={`bento-card flex items-center justify-between cursor-pointer border border-slate-100 ${task.completed ? 'bg-slate-50 opacity-60' : 'bg-white shadow-xl shadow-black/[0.02]'}`}
                 >
-                  <div className="flex items-center gap-4">
-                    <button 
-                      onClick={() => setTasks(tasks.map(t => t.id === task.id ? {...t, completed: !t.completed} : t))}
-                      className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center transition-all ${task.completed ? 'bg-mint border-mint shadow-lg shadow-mint/20' : 'border-slate-200'}`}
-                    >
-                      {task.completed && <Check size={18} className="text-white" />}
-                    </button>
+                  <div className="flex items-center gap-5">
+                    <div className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center shadow-inner transition-colors ${
+                      task.completed ? 'bg-slate-200 text-slate-400' : 'bg-sunset-pink/10 text-sunset-pink'
+                    }`}>
+                      {task.completed ? <Check size={24} /> : <Zap size={24} />}
+                    </div>
                     <div className="space-y-0.5">
-                      <span className={`text-lg font-bold transition-all ${task.completed ? 'text-slate-300 line-through' : 'text-sunset-wine'}`}>
+                      <span className={`text-lg font-black transition-all leading-tight block ${task.completed ? 'text-slate-400 line-through' : 'text-deep-teal'}`}>
                         {task.title}
                       </span>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-sunset-orange uppercase tracking-widest">{task.category}</span>
+                        <span className="text-[9px] font-black text-sunset-orange uppercase tracking-widest bg-sunset-orange/5 px-2 py-0.5 rounded-full">{task.category}</span>
                       </div>
                     </div>
                   </div>
                   <button 
-                    onClick={() => SocialService.deleteTask(task.id)}
-                    className="p-2 text-slate-300 hover:text-sunset-red transition-colors"
+                    onClick={(e) => { e.stopPropagation(); SocialService.deleteTask(task.id); }}
+                    className="p-3 text-slate-300 hover:text-sunset-red transition-colors"
                   >
-                    <Trash2 size={18} />
+                    <Trash2 size={20} />
                   </button>
                 </motion.div>
               ))}
@@ -741,57 +913,46 @@ export default function App() {
         );
       case 'wellness':
         return (
-          <div className="space-y-8 pb-32 px-8 pt-12 overflow-y-auto">
-            <header className="flex justify-between items-center">
-              <div className="space-y-1">
-                <h2 className="text-4xl font-black text-sunset-wine tracking-tight">Vida</h2>
-                <p className="text-sunset-wine/40 font-bold">Escucha a tu cuerpo.</p>
+          <div className="space-y-8 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar">
+            <header className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-mint animate-pulse" />
+                <p className="text-[10px] font-black text-mint uppercase tracking-[0.3em] italic">Esencia</p>
               </div>
-              <motion.button 
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setIsWellnessModalOpen(true)}
-                className="w-14 h-14 sunset-gradient text-white rounded-[2rem] flex items-center justify-center shadow-xl shadow-sunset-orange/30"
-              >
-                <Plus size={28} />
-              </motion.button>
+              <h2 className="text-4xl font-black text-deep-teal tracking-tight leading-none italic">Mi Vida</h2>
             </header>
 
-            <div className="grid grid-cols-1 gap-6">
+            <div className="grid grid-cols-2 gap-4">
               {wellness.map((item) => (
                 <motion.div 
                   key={item.id}
-                  whileHover={{ scale: 1.02 }}
+                  whileHover={{ y: -4 }}
                   onClick={() => toggleWellness(item.id)}
-                  className={`glass-card p-6 flex items-center gap-6 cursor-pointer bg-gradient-to-br border-none shadow-xl transition-all ${
-                    item.completed ? 'from-slate-100 to-slate-200 opacity-60' : 'from-white/60 to-mint/5 hover:from-white/80'
+                  className={`bento-card flex flex-col gap-6 cursor-pointer border border-slate-100 ${
+                    item.completed ? 'bg-slate-50 opacity-60' : 'bg-white shadow-xl shadow-black/[0.02]'
                   }`}
                 >
-                  <div className={`w-14 h-14 rounded-[1.5rem] flex items-center justify-center shadow-inner ${
-                    item.completed ? 'bg-slate-300 text-white' : 
+                  <div className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center shadow-inner ${
+                    item.completed ? 'bg-slate-200 text-white' : 
                     item.type === 'water' ? 'bg-sky-100 text-sky-500' :
                     item.type === 'food' ? 'bg-orange-100 text-orange-500' :
-                    item.type === 'sleep' ? 'bg-indigo-100 text-indigo-500' :
-                    'bg-mint/20 text-mint'
+                    item.type === 'medicine' ? 'bg-indigo-100 text-indigo-500' :
+                    item.type === 'rest' ? 'bg-purple-100 text-purple-500' :
+                    'bg-slate-100 text-slate-500'
                   }`}>
                     {item.type === 'water' ? <Droplets size={24} /> :
-                     item.type === 'food' ? <Coffee size={24} /> :
-                     item.type === 'sleep' ? <Moon size={24} /> :
-                     <Heart size={24} fill={item.completed ? 'white' : 'currentColor'} />}
+                     item.type === 'food' ? <Utensils size={24} /> :
+                     item.type === 'medicine' ? <Pill size={24} /> :
+                     item.type === 'rest' || item.type === 'sleep' ? <Moon size={24} /> :
+                     <Sparkles size={24} />}
                   </div>
-                  <div className="flex-1 space-y-0.5">
-                    <h3 className={`text-lg font-black ${item.completed ? 'text-slate-400 line-through' : 'text-sunset-wine'}`}>
+                  <div className="space-y-1">
+                    <h3 className={`text-base font-black leading-tight ${item.completed ? 'text-slate-400 line-through' : 'text-deep-teal'}`}>
                       {item.label}
                     </h3>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.time}</span>
-                      <span className="text-[10px] font-black text-mint uppercase tracking-widest bg-mint/10 px-2 py-0.5 rounded-full">Sugerencia</span>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{item.time}</span>
                     </div>
-                  </div>
-                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center border-2 transition-all ${
-                    item.completed ? 'bg-mint border-mint text-white' : 'border-slate-100 text-transparent'
-                  }`}>
-                    <Check size={14} />
                   </div>
                 </motion.div>
               ))}
@@ -858,106 +1019,261 @@ export default function App() {
         );
       case 'alarms':
         return (
-          <div className="space-y-8 pb-32 px-8 pt-12">
-            <header className="flex justify-between items-center">
+          <div className="space-y-8 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar">
+            <header className="flex justify-between items-end">
               <div className="space-y-1">
-                <h2 className="text-4xl font-black text-sunset-wine tracking-tight">Alarmas</h2>
-                <p className="text-sunset-wine/40 font-bold">Despierta tu esencia.</p>
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sunset-orange animate-pulse" />
+                  <p className="text-[10px] font-black text-sunset-orange uppercase tracking-[0.3em] italic">Ritmo Vital</p>
+                </div>
+                <h2 className="text-4xl font-black text-deep-teal tracking-tight leading-none italic">Alarmas</h2>
               </div>
               <motion.button 
-                whileHover={{ scale: 1.1 }}
+                whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setIsAlarmModalOpen(true)}
-                className="w-14 h-14 sunset-gradient text-white rounded-[2rem] flex items-center justify-center shadow-xl shadow-sunset-orange/30"
+                className="w-16 h-16 bg-deep-teal text-white rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-deep-teal/20"
               >
-                <Plus size={28} />
+                <Plus size={32} />
               </motion.button>
             </header>
 
-            <div className="grid grid-cols-1 gap-4">
+            {/* Harmony Summary for Alarms */}
+            <SectionSummary 
+              title="Plan de Armonía: Ritmo"
+              stats={[
+                { label: 'Total', count: routine.length + wellness.length, color: 'bg-mint/10 text-mint', icon: <Clock size={14} /> },
+                { label: 'Hecho', count: routine.filter(it => it.completed).length + wellness.filter(it => it.completed).length, color: 'bg-sunset-pink/10 text-sunset-pink', icon: <Check size={14} /> },
+                { label: 'Próximo', count: routine.filter(it => !it.completed).length + wellness.filter(it => !it.completed).length, color: 'bg-sunset-orange/10 text-sunset-orange', icon: <Zap size={14} /> }
+              ]}
+            />
+
+            <div className="space-y-4">
               {alarms.map((alarm) => (
                 <motion.div 
                   key={alarm.id}
-                  className="glass-card p-8 flex items-center justify-between bg-white/60 backdrop-blur-xl border-none shadow-lg"
+                  whileHover={{ scale: 1.02 }}
+                  className="bg-white rounded-[2.5rem] p-6 flex justify-between items-center shadow-xl shadow-black/[0.01] border border-slate-50"
                 >
-                  <div className="space-y-1">
-                    <span className="text-4xl font-black text-sunset-wine tracking-tighter">{alarm.time}</span>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-slate-500">{alarm.title}</h3>
-                      <span className="text-[10px] font-black text-sunset-orange uppercase tracking-widest opacity-60">• {alarm.category}</span>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setAlarms(alarms.map(a => a.id === alarm.id ? {...a, enabled: !a.enabled} : a))}
-                    className={`w-14 h-8 rounded-full p-1 transition-all duration-300 ${alarm.enabled ? 'bg-mint' : 'bg-slate-200'}`}
-                  >
-                    <motion.div 
-                      animate={{ x: alarm.enabled ? 24 : 0 }}
-                      className="w-6 h-6 bg-white rounded-full shadow-sm"
-                    />
-                  </button>
+                   <div className="flex items-center gap-5">
+                      <div className={`w-14 h-14 rounded-3xl flex items-center justify-center text-white ${
+                        alarm.category === 'meal' ? 'bg-orange-400' : 
+                        alarm.category === 'medicine' ? 'bg-sky-400' : 'bg-indigo-400'
+                      }`}>
+                         <AlarmClock size={24} />
+                      </div>
+                      <div>
+                         <h4 className="text-2xl font-black text-deep-teal tracking-tight">{alarm.time}</h4>
+                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mt-1">{alarm.title} • {alarm.days.join(', ')}</p>
+                      </div>
+                   </div>
+                   <button 
+                     onClick={() => toggleAlarm(alarm.id)}
+                     className={`w-12 h-6 rounded-full p-1 transition-colors relative ${alarm.enabled ? 'bg-mint' : 'bg-slate-200'}`}
+                   >
+                      <motion.div 
+                        animate={{ x: alarm.enabled ? 24 : 0 }}
+                        className="w-4 h-4 bg-white rounded-full shadow-sm"
+                      />
+                   </button>
                 </motion.div>
               ))}
+              
+              {alarms.length === 0 && (
+                <div className="bg-slate-50 rounded-[3rem] p-12 text-center border border-dashed border-slate-200">
+                  <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest font-mono">No hay alarmas activas</p>
+                </div>
+              )}
             </div>
+
+            {/* Quick Habits Section */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-[3.5rem] p-8 shadow-xl shadow-black/[0.02] border border-slate-100"
+            >
+              <div className="flex justify-between items-center mb-6">
+                 <div className="space-y-0.5">
+                    <h3 className="text-xl font-black text-deep-teal tracking-tighter">Hábitos Rápidos</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Acción Inmediata</p>
+                 </div>
+                 <motion.button 
+                   whileHover={{ rotate: 90 }}
+                   onClick={() => setIsHabitConfigOpen(true)}
+                   className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 hover:text-deep-teal transition-colors"
+                 >
+                   <Settings size={20} />
+                 </motion.button>
+              </div>
+              
+              <div className="grid grid-cols-4 gap-4">
+                {[
+                  { type: 'water' as const, icon: <Droplets size={24} />, color: 'bg-sky-50 text-sky-500', activeColor: 'bg-sky-500 text-white' },
+                  { type: 'food' as const, icon: <Utensils size={24} />, color: 'bg-orange-50 text-orange-500', activeColor: 'bg-orange-500 text-white' },
+                  { type: 'rest' as const, icon: <Moon size={24} />, color: 'bg-purple-50 text-purple-500', activeColor: 'bg-purple-500 text-white' },
+                  { type: 'medicine' as const, icon: <Pill size={24} />, color: 'bg-indigo-50 text-indigo-500', activeColor: 'bg-indigo-500 text-white' },
+                ].filter(h => enabledHabitTypes.includes(h.type)).map((habit) => {
+                  const isDone = wellness.some(w => w.type === habit.type && w.completed);
+                  return (
+                    <div key={habit.type} className="flex flex-col items-center gap-2">
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9, rotate: [0, -10, 10, 0] }}
+                        onClick={() => handleQuickHabitToggle(habit.type)}
+                        className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center transition-all duration-500 shadow-sm relative ${
+                          isDone ? habit.activeColor : habit.color + ' border border-transparent'
+                        }`}
+                      >
+                        {habit.icon}
+                        {isDone && (
+                          <motion.div 
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="absolute -top-1 -right-1 w-5 h-5 bg-mint rounded-full flex items-center justify-center border-2 border-white"
+                          >
+                            <Check size={10} className="text-white" strokeWidth={4} />
+                          </motion.div>
+                        )}
+                      </motion.button>
+                      <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">
+                        {habit.type === 'water' ? 'Agua' : habit.type === 'food' ? 'Comida' : habit.type === 'rest' ? 'Relax' : 'Zen'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
           </div>
         );
       case 'stats':
         return (
-          <div className="space-y-8 pb-32 px-8 pt-12">
+          <div className="space-y-8 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar">
             <header className="space-y-1">
-              <h2 className="text-4xl font-black text-sunset-wine tracking-tight">Análisis</h2>
-              <p className="text-sunset-wine/40 font-bold">Tu evolución consciente.</p>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-sunset-orange animate-pulse" />
+                <p className="text-[10px] font-black text-sunset-orange uppercase tracking-[0.3em] italic">Análisis</p>
+              </div>
+              <h2 className="text-4xl font-black text-deep-teal tracking-tight leading-none italic">Logros</h2>
             </header>
 
-            <div className="grid grid-cols-2 gap-6">
+            {/* Harmony Summary for stats */}
+            <SectionSummary 
+              title="Plan de Armonía: Global"
+              stats={[
+                { label: 'Total', count: tasks.length + routine.length + wellness.length, color: 'bg-mint/10 text-mint', icon: <Clock size={14} /> },
+                { label: 'Hecho', count: tasks.filter(it => it.completed).length + routine.filter(it => it.completed).length + wellness.filter(it => it.completed).length, color: 'bg-sunset-pink/10 text-sunset-pink', icon: <Check size={14} /> },
+                { label: 'Próximo', count: tasks.filter(it => !it.completed).length + routine.filter(it => !it.completed).length + wellness.filter(it => !it.completed).length, color: 'bg-sunset-orange/10 text-sunset-orange', icon: <Zap size={14} /> }
+              ]}
+            />
+
+            {/* Performance Overview Bento */}
+            <div className="grid grid-cols-2 gap-4">
               <motion.div 
-                whileHover={{ y: -5 }}
-                className="glass-card p-8 flex flex-col gap-4 bg-white/60 backdrop-blur-xl border-none shadow-xl"
+                whileHover={{ y: -4 }}
+                className="bg-deep-teal rounded-[3.5rem] p-8 flex flex-col gap-6 text-white relative overflow-hidden"
               >
-                <div className="w-12 h-12 bg-sunset-orange/10 rounded-2xl flex items-center justify-center text-sunset-orange">
-                  <Smartphone size={24} />
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                   <Zap size={60} />
                 </div>
                 <div>
-                  <span className="text-3xl font-black text-sunset-wine tracking-tighter">2.5h</span>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Pantalla</p>
+                   <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Rendimiento</p>
+                   <span className="text-4xl font-black tracking-tighter italic">85%</span>
+                </div>
+                <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                   <motion.div 
+                     initial={{ width: 0 }} 
+                     animate={{ width: `${balance}%` }} 
+                     className="h-full bg-mint" 
+                   />
                 </div>
               </motion.div>
+
               <motion.div 
-                whileHover={{ y: -5 }}
-                className="glass-card p-8 flex flex-col gap-4 bg-white/60 backdrop-blur-xl border-none shadow-xl"
+                whileHover={{ y: -4 }}
+                className="bg-sunset-pink rounded-[3.5rem] p-8 flex flex-col gap-6 text-white relative overflow-hidden"
               >
-                <div className="w-12 h-12 bg-mint/10 rounded-2xl flex items-center justify-center text-mint">
-                  <Zap size={24} />
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                   <Clock size={60} />
                 </div>
                 <div>
-                  <span className="text-3xl font-black text-sunset-wine tracking-tighter">85%</span>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Enfoque</p>
+                   <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">En Sintonía</p>
+                   <span className="text-4xl font-black tracking-tighter italic">{streak}d</span>
+                </div>
+                <div className="flex items-center gap-1">
+                   <TrendingUp size={12} />
+                   <span className="text-[9px] font-bold uppercase">Racha Actual</span>
                 </div>
               </motion.div>
             </div>
 
-            <div className="glass-card p-8 bg-white/60 backdrop-blur-xl border-none shadow-xl space-y-6">
-              <h3 className="text-xl font-black text-sunset-wine tracking-tight">Ritmo Semanal</h3>
+            {/* Main Graph Card with Toggle */}
+            <div className="bg-white rounded-[3.5rem] p-8 shadow-xl shadow-black/[0.02] border border-slate-100 space-y-8">
+              <div className="flex justify-between items-center">
+                 <h3 className="text-2xl font-black text-deep-teal tracking-tight italic">Ritmo Vital</h3>
+                 <div className="bg-slate-50 p-1.5 rounded-full flex gap-1">
+                    <button 
+                      onClick={() => setStatsPeriod('week')}
+                      className={`px-4 py-1.5 text-[10px] font-black rounded-full uppercase tracking-widest transition-all ${
+                        statsPeriod === 'week' ? 'bg-deep-teal text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      Semana
+                    </button>
+                    <button 
+                      onClick={() => setStatsPeriod('month')}
+                      className={`px-4 py-1.5 text-[10px] font-black rounded-full uppercase tracking-widest transition-all ${
+                        statsPeriod === 'month' ? 'bg-deep-teal text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      Mes
+                    </button>
+                 </div>
+              </div>
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={MOCK_STATS}>
+                  <AreaChart data={statsData}>
                     <defs>
                       <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#FF7E5F" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#FF7E5F" stopOpacity={0}/>
+                        <stop offset="5%" stopColor={statsPeriod === 'week' ? '#41b8a2' : '#ff7597'} stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor={statsPeriod === 'week' ? '#41b8a2' : '#ff7597'} stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                     <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
                     <YAxis hide />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: 'rgba(255,255,255,0.8)', borderRadius: '20px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)' }}
-                      itemStyle={{ color: '#6B2D5C', fontWeight: 900 }}
+                      contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '24px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', backdropFilter: 'blur(10px)' }}
+                      itemStyle={{ color: '#1d4d4f', fontWeight: 900, fontSize: '12px' }}
                     />
-                    <Area type="monotone" dataKey="value" stroke="#FF7E5F" strokeWidth={4} fillOpacity={1} fill="url(#colorValue)" />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke={statsPeriod === 'week' ? '#41b8a2' : '#ff7597'} 
+                      strokeWidth={5} 
+                      fillOpacity={1} 
+                      fill="url(#colorValue)" 
+                      strokeLinecap="round" 
+                      animationDuration={1000}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
+            </div>
+
+            {/* Ranking Preview Card */}
+            <div className="bg-soft-peach rounded-[3.5rem] p-8 flex justify-between items-center">
+               <div className="flex -space-x-3">
+                  {[1,2,3].map(i => (
+                    <div key={i} className="w-12 h-12 rounded-2xl border-4 border-soft-peach overflow-hidden bg-white">
+                       <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=user${i}`} alt="U" />
+                    </div>
+                  ))}
+                  <div className="w-12 h-12 rounded-2xl border-4 border-soft-peach bg-deep-teal flex items-center justify-center text-white text-xs font-black">+12</div>
+               </div>
+               <div className="text-right space-y-1">
+                  <p className="text-[9px] font-black text-deep-teal/40 uppercase tracking-[0.2em] leading-none italic">Alumni</p>
+                  <p className="text-sm font-black text-deep-teal">Top 10 Global</p>
+               </div>
             </div>
           </div>
         );
@@ -1394,6 +1710,32 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Main AI Interaction Button - Refined Glass Style */}
+      <div className="fixed right-4 top-1/2 -translate-y-1/2 z-[100] flex flex-col items-center">
+        <motion.button
+          whileHover={{ scale: 1.1, x: -4 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setIsAiConsultationOpen(true)}
+          className="w-14 h-14 rounded-[1.8rem] bg-white/50 backdrop-blur-xl border border-white/80 text-sunset-wine shadow-[0_8px_32px_rgba(0,0,0,0.06)] flex items-center justify-center group relative"
+        >
+          <Sparkles size={26} className="opacity-70 transition-transform group-hover:rotate-12 group-hover:opacity-100" />
+          
+          {/* Subtle slow pulse animation */}
+          <motion.div 
+            animate={{ 
+              scale: [1, 1.2, 1],
+              opacity: [0.15, 0, 0.15],
+            }}
+            transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+            className="absolute inset-0 bg-sunset-orange rounded-[1.8rem] -z-10"
+          />
+          
+          <div className="absolute right-full mr-4 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/50 shadow-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none translate-x-2 group-hover:translate-x-0">
+            <span className="text-[9px] font-black text-sunset-wine uppercase tracking-[0.2em]">Consultar IA</span>
+          </div>
+        </motion.button>
+      </div>
+
       {/* Notifications Modal */}
       <AnimatePresence>
         {isNotificationsOpen && (
@@ -1464,142 +1806,74 @@ export default function App() {
       {/* Profile Modal */}
       <AnimatePresence>
         {isProfileOpen && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => {
-                setIsProfileOpen(false);
-                setIsEditingProfile(false);
-              }}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              onClick={() => setIsProfileOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
+              className="bg-white w-full max-w-md rounded-[3rem] overflow-hidden relative z-10 shadow-2xl"
             >
-              <div className="h-32 bg-gradient-to-br from-primary to-indigo-600" />
-              <div className="px-6 pb-8">
-                <div className="relative -mt-12 mb-4">
-                  <div className="w-24 h-24 rounded-3xl bg-white p-1 shadow-xl">
-                    <div className="w-full h-full rounded-2xl bg-slate-100 flex items-center justify-center overflow-hidden relative group">
-                      <img 
-                        src={userProfile.photo} 
-                        alt="Profile" 
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                      <label className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Plus size={24} className="text-white" />
-                        <input type="file" className="hidden" accept="image/*" onChange={handlePhotoChange} />
-                      </label>
-                    </div>
+              <div className="bg-sunset-pink p-12 text-white flex flex-col items-center gap-4 text-center">
+                <div className="relative">
+                  <div className="w-32 h-32 rounded-[2.5rem] bg-white p-1.5 shadow-2xl relative overflow-hidden">
+                    <img 
+                      src={userProfile.photo} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover rounded-[2rem]"
+                    />
                   </div>
+                  <label className="absolute -bottom-2 -right-2 w-10 h-10 bg-black rounded-full flex items-center justify-center cursor-pointer shadow-xl border-4 border-sunset-pink hover:scale-110 transition-transform">
+                    <Edit2 size={16} className="text-white" />
+                    <input type="file" className="hidden" onChange={handlePhotoChange} accept="image/*" />
+                  </label>
+                </div>
+                <div className="space-y-1">
+                  <h2 className="text-3xl font-black tracking-tight">{userProfile.name}</h2>
+                  <p className="text-white/60 font-medium">{userProfile.email}</p>
+                </div>
+              </div>
+
+              <div className="p-8 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="bg-slate-50 p-6 rounded-[2rem] flex flex-col items-center gap-2">
+                      <Zap size={24} className="text-sunset-orange" fill="currentColor" />
+                      <div className="text-center">
+                         <p className="text-xl font-black text-slate-800">{streak}</p>
+                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Racha</p>
+                      </div>
+                   </div>
+                   <div className="bg-slate-50 p-6 rounded-[2rem] flex flex-col items-center gap-2">
+                      <Clock size={24} className="text-deep-teal" fill="currentColor" />
+                      <div className="text-center">
+                         <p className="text-xl font-black text-slate-800">{balance}%</p>
+                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Esencia</p>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <button className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] hover:bg-black transition-colors">Configuración</button>
                   <button 
-                    className="absolute bottom-0 left-20 p-2 bg-white rounded-xl shadow-lg border border-slate-100 text-primary hover:scale-110 transition-transform"
-                    onClick={() => {
-                      const input = document.createElement('input');
-                      input.type = 'file';
-                      input.accept = 'image/*';
-                      input.onchange = (e: any) => handlePhotoChange(e);
-                      input.click();
-                    }}
-                  >
-                    <Plus size={16} />
+                    onClick={() => signOut(auth)}
+                    className="w-full bg-slate-100 text-slate-400 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] hover:bg-slate-200 transition-colors"
+                   >
+                    Cerrar Sesión
                   </button>
                 </div>
-                
-                <div className="space-y-4 mb-6">
-                  {isEditingProfile ? (
-                    <div className="space-y-3">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Nombre Completo</label>
-                        <input 
-                          type="text" 
-                          className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20"
-                          value={userProfile.name}
-                          onChange={(e) => setUserProfile({...userProfile, name: e.target.value})}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email</label>
-                        <input 
-                          type="email" 
-                          className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20"
-                          value={userProfile.email}
-                          onChange={(e) => setUserProfile({...userProfile, email: e.target.value})}
-                        />
-                      </div>
-                      <button 
-                        onClick={() => setIsEditingProfile(false)}
-                        className="w-full py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 mt-2"
-                      >
-                        Guardar Cambios
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      <h2 className="text-2xl font-bold text-slate-900">{userProfile.name}</h2>
-                      <p className="text-slate-500">{userProfile.email}</p>
-                    </div>
-                  )}
-                </div>
-
-                {!isEditingProfile && (
-                  <>
-                    <div className="grid grid-cols-2 gap-3 mb-8">
-                      <div className="p-4 bg-slate-50 rounded-3xl">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nivel</p>
-                        <p className="text-lg font-bold text-primary">Maestro</p>
-                      </div>
-                      <div className="p-4 bg-slate-50 rounded-3xl">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Racha</p>
-                        <p className="text-lg font-bold text-emerald-600">12 Días</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <button 
-                        onClick={() => setIsEditingProfile(true)}
-                        className="w-full p-4 flex items-center gap-3 rounded-2xl hover:bg-slate-50 transition-colors text-slate-700 font-medium"
-                      >
-                        <User size={20} className="text-slate-400" />
-                        Editar Perfil
-                      </button>
-                      <button 
-                        onClick={() => setIsPreferencesOpen(true)}
-                        className="w-full p-4 flex items-center gap-3 rounded-2xl hover:bg-slate-50 transition-colors text-slate-700 font-medium"
-                      >
-                        <BarChart3 size={20} className="text-slate-400" />
-                        Preferencias
-                      </button>
-                      <button 
-                        onClick={() => {
-                          signOut(auth).then(() => {
-                            setIsAuthenticated(false);
-                            setIsProfileOpen(false);
-                          });
-                        }}
-                        className="w-full p-4 flex items-center gap-3 rounded-2xl hover:bg-rose-50 transition-colors text-rose-600 font-bold mt-4"
-                      >
-                        <Lock size={20} className="text-rose-400" />
-                        Cerrar Sesión
-                      </button>
-                    </div>
-                  </>
-                )}
               </div>
+
               <button 
-                onClick={() => {
-                  setIsProfileOpen(false);
-                  setIsEditingProfile(false);
-                }}
-                className="absolute top-6 right-6 p-2 bg-white/20 hover:bg-white/30 text-white rounded-full backdrop-blur-md transition-colors"
+                onClick={() => setIsProfileOpen(false)}
+                className="absolute top-6 right-6 w-10 h-10 bg-black/10 rounded-full flex items-center justify-center text-white/50 hover:bg-black/20"
               >
-                <Plus size={20} className="rotate-45" />
+                <Plus size={24} className="rotate-45" />
               </button>
             </motion.div>
           </div>
@@ -1678,6 +1952,60 @@ export default function App() {
                   className="w-full p-4 bg-slate-100 text-slate-600 font-bold rounded-2xl"
                 >
                   Cerrar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      
+      {/* About Modal */}
+      <AnimatePresence>
+        {isAboutOpen && (
+          <div className="fixed inset-0 z-[170] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAboutOpen(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-[2.5rem] p-8 shadow-2xl overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-2 sunset-gradient" />
+              
+              <div className="flex flex-col items-center text-center space-y-6">
+                <div className="w-16 h-16 sunset-gradient rounded-2xl flex items-center justify-center shadow-lg shadow-sunset-orange/20">
+                  <Clock size={32} className="text-white" />
+                </div>
+                
+                <div className="space-y-2">
+                  <h2 className="text-3xl font-black text-sunset-wine tracking-tight uppercase">Kairos</h2>
+                  <p className="text-xs font-black text-sunset-orange tracking-[0.2em] uppercase">Tiempo con sentido</p>
+                </div>
+                
+                <div className="space-y-4 text-slate-600 leading-relaxed">
+                  <p className="text-sm font-medium">
+                    Kairos no es solo una agenda, es una filosofía de vida. En la antigua Grecia, "Kairos" representaba el tiempo oportuno, el momento perfecto donde las cosas suceden.
+                  </p>
+                  <p className="text-sm">
+                    Nuestra misión es ayudarte a encontrar ese equilibrio entre productividad y bienestar. Con la ayuda de tu guardián del tiempo y nuestra IA, buscamos que cada minuto cuente no por su cantidad, sino por su propósito.
+                  </p>
+                  <div className="pt-4 border-t border-slate-100 w-full">
+                    <p className="text-[10px] font-bold text-slate-400 tracking-widest uppercase mb-1">Creado para ti por</p>
+                    <p className="text-sm font-black text-sunset-wine">Equipo Kairos</p>
+                  </div>
+                </div>
+                
+                <button 
+                  onClick={() => setIsAboutOpen(false)}
+                  className="w-full py-4 sunset-gradient text-white font-bold rounded-2xl shadow-xl shadow-sunset-orange/20 transition-transform active:scale-95"
+                >
+                  Entendido
                 </button>
               </div>
             </motion.div>
@@ -1863,6 +2191,81 @@ export default function App() {
                 className="w-full text-[10px] font-black uppercase tracking-[0.4em] text-sunset-wine/20 py-2 hover:text-sunset-wine/40 transition-colors"
               >
                 Cerrar Volver
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Habit Config Modal */}
+      <AnimatePresence>
+        {isHabitConfigOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsHabitConfigOpen(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-3xl p-8 shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-black text-deep-teal tracking-tighter">Configurar Hábitos</h2>
+                <button onClick={() => setIsHabitConfigOpen(false)} className="text-slate-400">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                {[
+                  { type: 'water' as const, label: 'Agua', icon: <Droplets size={20} /> },
+                  { type: 'food' as const, label: 'Comida', icon: <Utensils size={20} /> },
+                  { type: 'rest' as const, label: 'Relax', icon: <Moon size={20} /> },
+                  { type: 'medicine' as const, label: 'Zen', icon: <Pill size={20} /> },
+                ].map((habit) => {
+                  const isActive = enabledHabitTypes.includes(habit.type);
+                  return (
+                    <button
+                      key={habit.type}
+                      onClick={() => {
+                        if (isActive) {
+                          setEnabledHabitTypes(enabledHabitTypes.filter(t => t !== habit.type));
+                        } else {
+                          setEnabledHabitTypes([...enabledHabitTypes, habit.type]);
+                        }
+                      }}
+                      className={`w-full p-4 rounded-2xl flex items-center justify-between border-2 transition-all ${
+                        isActive 
+                          ? 'bg-deep-teal/5 border-deep-teal text-deep-teal' 
+                          : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={isActive ? 'text-deep-teal' : 'text-slate-300'}>
+                          {habit.icon}
+                        </div>
+                        <span className="font-black uppercase text-[10px] tracking-widest">{habit.label}</span>
+                      </div>
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${
+                        isActive ? 'bg-deep-teal text-white' : 'bg-slate-100 text-slate-300'
+                      }`}>
+                        {isActive ? <Check size={14} strokeWidth={4} /> : <Plus size={14} strokeWidth={4} />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button 
+                onClick={() => setIsHabitConfigOpen(false)}
+                className="w-full mt-8 p-4 bg-deep-teal text-white font-black uppercase text-xs tracking-[0.2em] rounded-2xl shadow-xl shadow-deep-teal/20"
+              >
+                Hecho
               </button>
             </motion.div>
           </div>
@@ -2075,89 +2478,67 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* Organic Navigation Bar */}
-      <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-sm glass-card p-3 flex justify-around items-center z-50 bg-white/40 backdrop-blur-3xl border-none shadow-2xl rounded-[2.5rem]">
-        <NavButton 
-          active={activeTab === 'dashboard'} 
-          onClick={() => setActiveTab('dashboard')} 
-          icon={<LayoutDashboard size={24} />} 
-          label="Inicio" 
-        />
-        <NavButton 
-          active={activeTab === 'tasks'} 
-          onClick={() => setActiveTab('tasks')} 
-          icon={<Zap size={24} />} 
-          label="Metas" 
-        />
-        <NavButton 
-          active={activeTab === 'calendar'} 
-          onClick={() => setActiveTab('calendar')} 
-          icon={<CalendarIcon size={24} />} 
-          label="Agenda" 
-        />
-        <NavButton 
-          active={activeTab === 'wellness'} 
-          onClick={() => setActiveTab('wellness')} 
-          icon={<Heart size={24} />} 
-          label="Vida" 
-        />
-        <NavButton 
-          active={activeTab === 'alarms'} 
-          onClick={() => setActiveTab('alarms')} 
-          icon={<AlarmClock size={24} />} 
-          label="Ritmo" 
-        />
-        <NavButton 
-          active={activeTab === 'circles'} 
-          onClick={() => setActiveTab('circles')} 
-          icon={<Users size={24} />} 
-          label="Comunidad" 
-        />
-        <NavButton 
-          active={activeTab === 'stats'} 
-          onClick={() => setActiveTab('stats')} 
-          icon={<BarChart3 size={24} />} 
-          label="Ser" 
-        />
-      </nav>
+      {/* Integrated Bottom Navigation - Dynamic and Organic */}
+      <footer className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-4">
+        <nav className="bg-deep-teal/90 backdrop-blur-2xl p-2.5 rounded-[3.5rem] flex items-center justify-around gap-1 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.4)] border border-white/5 relative overflow-hidden">
+          {/* Subtle glow behind the whole nav */}
+          <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-32 h-32 bg-mint/5 blur-3xl pointer-events-none" />
+          
+          {[
+            { id: 'tasks', icon: <CheckSquare size={22} />, label: 'Metas' },
+            { id: 'dashboard', icon: <LayoutDashboard size={22} />, label: 'Centro' },
+            { id: 'alarms', icon: <AlarmClock size={22} />, label: 'Alarmas' },
+            { id: 'stats', icon: <BarChart2 size={22} />, label: 'Logros' },
+            { id: 'circles', icon: <Users size={22} />, label: 'Social' },
+          ].map((item) => {
+            const isActive = activeTab === item.id;
+            return (
+              <motion.button
+                key={item.id}
+                layout
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setActiveTab(item.id)}
+                className={`relative flex items-center justify-center gap-2 h-14 rounded-full transition-all duration-500 overflow-hidden ${
+                  isActive 
+                    ? 'bg-white text-deep-teal px-6 flex-grow shadow-lg z-10' 
+                    : 'text-white/30 hover:text-white/60 px-4'
+                }`}
+              >
+                <div className="relative z-10">
+                  {item.icon}
+                </div>
+                
+                <AnimatePresence mode="wait">
+                  {isActive && (
+                    <motion.span 
+                      initial={{ opacity: 0, x: -5 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 5 }}
+                      className="text-[11px] font-black uppercase tracking-widest leading-none mt-0.5 whitespace-nowrap relative z-10"
+                    >
+                      {item.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+
+                {/* Internal active swell effect */}
+                {isActive && (
+                  <motion.div 
+                    layoutId="active-bg"
+                    className="absolute inset-0 bg-white"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+              </motion.button>
+            );
+          })}
+        </nav>
+      </footer>
     </div>
   );
 }
 
-function NavButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
-  return (
-    <button 
-      onClick={onClick}
-      className="flex flex-col items-center gap-1.5 p-2 relative group"
-    >
-      <motion.div
-        animate={active ? { scale: 1.2, y: -4 } : { scale: 1, y: 0 }}
-        className={`transition-colors duration-300 ${active ? 'text-sunset-orange' : 'text-sunset-wine/30 group-hover:text-sunset-wine/60'}`}
-      >
-        {icon}
-      </motion.div>
-      <span className={`text-[8px] font-black uppercase tracking-[0.2em] transition-colors duration-300 ${active ? 'text-sunset-wine' : 'text-sunset-wine/20'}`}>
-        {label}
-      </span>
-      {active && (
-        <motion.div 
-          layoutId="nav-glow"
-          className="absolute -inset-2 bg-sunset-orange/10 blur-xl rounded-full -z-10" 
-        />
-      )}
-    </button>
-  );
-}
-
 function AuthScreen({ onLogin }: { onLogin: () => void }) {
-  const [view, setView] = useState<'welcome' | 'login' | 'register' | 'recover'>('welcome');
-  const [showPasswordLogin, setShowPasswordLogin] = useState(false);
-  const [showPasswordRegister, setShowPasswordRegister] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
-  
-  // Form state
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -2171,35 +2552,13 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
       onLogin();
     } catch (err: any) {
       console.error("Login Error", err);
-      // More descriptive errors for the user
       if (err.code === 'auth/popup-closed-by-user') {
-        setError('El inicio de sesión fue cancelado. Por favor, mantén la ventana abierta.');
+        setError('El inicio de sesión fue cancelado.');
       } else if (err.code === 'auth/popup-blocked') {
-        setError('Tu navegador bloqueó la ventana de inicio de sesión. Por favor, permite las ventanas emergentes.');
+        setError('El navegador bloqueó la ventana de inicio de sesión.');
       } else {
-        setError(err.message || 'Error al conectar con Google');
+        setError('Error al conectar con Google.');
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAppleLogin = () => {
-    alert("Soporte para Apple viene pronto. Actívalo en tu consola de Firebase Authentication.");
-  };
-
-  const handleEmailAuth = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      if (view === 'login') {
-        await signInWithEmailAndPassword(auth, email, password);
-      } else {
-        await createUserWithEmailAndPassword(auth, email, password);
-      }
-      onLogin();
-    } catch (err: any) {
-      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -2211,372 +2570,89 @@ function AuthScreen({ onLogin }: { onLogin: () => void }) {
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div 
           animate={{ 
-            scale: [1, 1.3, 1],
-            x: [0, 100, 0],
-            y: [0, -50, 0]
+            scale: [1, 1.2, 1],
+            rotate: [0, 90, 0],
+            x: [0, 50, 0],
           }}
-          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-          className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-sunset-orange/10 blur-[120px] rounded-full"
+          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-sunset-orange/10 blur-[100px] rounded-full"
         />
         <motion.div 
           animate={{ 
-            scale: [1, 1.2, 1],
-            x: [0, -80, 0],
-            y: [0, 100, 0]
+            scale: [1, 1.3, 1],
+            rotate: [0, -90, 0],
+            x: [0, -50, 0],
           }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
           className="absolute -bottom-40 -right-40 w-[500px] h-[500px] bg-mint/10 blur-[100px] rounded-full"
         />
       </div>
       
-      <AnimatePresence mode="wait">
-        {view === 'welcome' ? (
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md bg-white/40 backdrop-blur-3xl rounded-[4rem] p-12 shadow-[0_32px_64px_rgba(0,0,0,0.08)] relative z-10 text-center flex flex-col items-center gap-12 border border-white/40"
+      >
+        <div className="space-y-6">
           <motion.div 
-            key="welcome"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.1 }}
-            className="w-full max-w-md bg-white/40 backdrop-blur-3xl rounded-[4rem] p-12 shadow-[0_32px_64px_rgba(0,0,0,0.08)] relative z-10 text-center space-y-12 border border-white/40"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", damping: 15 }}
+            className="w-24 h-24 sunset-gradient rounded-[2.5rem] mx-auto flex items-center justify-center shadow-2rem shadow-sunset-orange/30 relative overflow-hidden"
           >
-            <div className="space-y-8">
-              <motion.div 
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.2, type: "spring" }}
-                className="w-28 h-28 sunset-gradient rounded-[3rem] mx-auto flex items-center justify-center shadow-2xl shadow-sunset-orange/30 relative"
-              >
-                <Clock size={56} className="text-white" />
-                <motion.div 
-                  animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
-                  transition={{ duration: 4, repeat: Infinity }}
-                  className="absolute inset-0 sunset-gradient rounded-[3rem] blur-xl -z-10"
-                />
-              </motion.div>
-              <div className="space-y-3">
-                <h1 className="text-6xl font-black tracking-tighter text-sunset-wine">Kairos</h1>
-                <p className="text-sunset-wine/60 font-bold text-xl tracking-tight">Tiempo con sentido.</p>
-              </div>
-            </div>
-
-            <div className="space-y-5">
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setView('login')}
-                className="w-full py-6 sunset-gradient text-white font-black rounded-[2rem] shadow-2xl shadow-sunset-orange/30 flex items-center justify-center gap-3 group text-xl"
-              >
-                Comenzar
-                <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
-              </motion.button>
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setView('register')}
-                className="w-full py-6 bg-white/60 backdrop-blur-md text-sunset-wine border border-white/40 font-black rounded-[2rem] flex items-center justify-center gap-3 hover:bg-white/80 transition-all text-xl"
-              >
-                Crear cuenta
-              </motion.button>
-
-              <div className="relative py-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-sunset-wine/10"></div>
-                </div>
-                <div className="relative flex justify-center text-[10px] uppercase tracking-[0.3em]">
-                  <span className="bg-white/0 px-6 text-sunset-wine/40 font-black">Conexión rápida</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <button 
-                  onClick={handleGoogleLogin}
-                  className="flex items-center justify-center gap-3 py-5 bg-white/40 border border-white/40 rounded-[2rem] hover:bg-white/60 transition-all group"
-                >
-                  <svg className="w-6 h-6" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                  </svg>
-                  <span className="text-sm font-black text-sunset-wine">Google</span>
-                </button>
-                <button 
-                  onClick={handleAppleLogin}
-                  className="flex items-center justify-center gap-3 py-5 bg-white/40 border border-white/40 rounded-[2rem] hover:bg-white/60 transition-all group"
-                >
-                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M17.05 20.28c-.98.95-2.05 1.61-3.22 1.61-1.14 0-1.55-.67-2.85-.67-1.32 0-1.78.65-2.85.65-1.14 0-2.11-.6-3.1-1.59C3.01 18.27 1.5 14.96 1.5 11.8c0-4.94 3.19-7.55 6.27-7.55 1.65 0 2.97.58 3.84.58.84 0 2.37-.61 4.28-.61 1.6 0 3.7.63 5.08 2.57-3.16 1.85-2.65 5.89.44 7.15-1.12 2.76-2.58 5.44-4.36 6.34zM12.03 3.92C11.96 1.95 13.6 0 15.5 0c.1 2.12-1.92 4.14-3.47 3.92z"/>
-                  </svg>
-                  <span className="text-sm font-black text-sunset-wine">Apple</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="pt-6">
-              <p className="text-[10px] text-sunset-wine/30 font-black uppercase tracking-[0.4em]">Experiencia de Conciencia</p>
-            </div>
+            <Clock size={48} className="text-white relative z-10" />
+            <motion.div 
+              animate={{ 
+                scale: [1, 1.5, 1],
+                rotate: [0, 180, 360]
+              }}
+              transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+              className="absolute inset-0 bg-white/20 blur-xl"
+            />
           </motion.div>
-        ) : (
-          <motion.div 
-            key={view}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="w-full max-w-md bg-white/60 backdrop-blur-3xl rounded-[3rem] p-10 shadow-2xl relative z-10 flex flex-col border border-white/40"
+          <div className="space-y-2">
+            <h1 className="text-5xl font-black tracking-tighter text-deep-teal italic">Kairos</h1>
+            <p className="text-deep-teal/40 font-bold text-lg tracking-tight">Tiempo con sentido.</p>
+          </div>
+        </div>
+
+        <div className="w-full space-y-6">
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-4 bg-rose-50 border border-rose-100 rounded-2xl"
+            >
+              <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{error}</p>
+            </motion.div>
+          )}
+
+          <motion.button 
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full py-6 bg-white shadow-xl shadow-black/[0.03] rounded-[2.5rem] flex items-center justify-center gap-4 group transition-all border border-slate-100 disabled:opacity-50"
           >
-            <div className="mb-10 flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sunset-gradient rounded-2xl flex items-center justify-center shadow-lg shadow-sunset-orange/20">
-                  <Clock size={20} className="text-white" />
-                </div>
-                <h1 className="text-2xl font-black tracking-tighter text-sunset-wine">Kairos</h1>
-              </div>
-              <button 
-                onClick={() => setView('welcome')}
-                className="w-10 h-10 flex items-center justify-center bg-white/40 rounded-full hover:bg-white/80 transition-colors"
-              >
-                <Plus size={24} className="rotate-45 text-sunset-wine/40" />
-              </button>
+            <div className="w-8 h-8 bg-slate-50 rounded-full flex items-center justify-center">
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
             </div>
+            <span className="text-base font-black text-deep-teal uppercase tracking-widest">
+              {loading ? 'Sincronizando...' : 'Entrar con Google'}
+            </span>
+            <ArrowRight size={20} className="text-deep-teal/20 group-hover:text-deep-teal group-hover:translate-x-1 transition-all" />
+          </motion.button>
+        </div>
 
-            {error && (
-              <div className="mb-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl">
-                <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{error}</p>
-              </div>
-            )}
-
-            {view === 'login' ? (
-              <div className="space-y-8">
-                <div>
-                  <h2 className="text-4xl font-black text-sunset-wine mb-2 tracking-tight">Acceder</h2>
-                  <p className="text-sunset-wine/60 font-medium">Bienvenido de nuevo a tu espacio vital.</p>
-                </div>
-
-                <div className="space-y-4">
-                  <button 
-                    onClick={handleGoogleLogin}
-                    disabled={loading}
-                    className="w-full py-5 bg-white border-2 border-rose-100 rounded-[2rem] flex items-center justify-center gap-3 hover:bg-rose-50 transition-all group disabled:opacity-50"
-                  >
-                    <svg className="w-6 h-6" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                    </svg>
-                    <span className="text-sm font-black text-sunset-wine">Continuar con Google</span>
-                  </button>
-
-                  <div className="relative py-4">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-sunset-wine/5"></div>
-                    </div>
-                    <div className="relative flex justify-center text-[8px] uppercase tracking-[0.2em]">
-                      <span className="bg-white/0 px-4 text-sunset-wine/20 font-black">O por correo</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-5">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-sunset-wine/50 uppercase tracking-[0.2em] ml-2">Usuario o Correo</label>
-                    <div className="relative">
-                      <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
-                      <input 
-                        type="email" 
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="nombre@ejemplo.com" 
-                        className="w-full pl-14 pr-5 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-sunset-wine/50 uppercase tracking-[0.2em] ml-2">Contraseña</label>
-                    <div className="relative">
-                      <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
-                      <input 
-                        type={showPasswordLogin ? "text" : "password"} 
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••" 
-                        className="w-full pl-14 pr-14 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
-                      />
-                      <button 
-                        type="button"
-                        onClick={() => setShowPasswordLogin(!showPasswordLogin)}
-                        className="absolute right-5 top-1/2 -translate-y-1/2 text-sunset-wine/30 hover:text-sunset-wine transition-colors"
-                      >
-                        {showPasswordLogin ? <EyeOff size={20} /> : <Eye size={20} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between px-2">
-                    <label className="flex items-center gap-3 cursor-pointer group">
-                      <div 
-                        className={`w-6 h-6 rounded-xl border-2 flex items-center justify-center transition-all ${rememberMe ? 'bg-sunset-orange border-sunset-orange shadow-lg shadow-sunset-orange/20' : 'border-slate-200 group-hover:border-sunset-orange/30'}`} 
-                        onClick={() => setRememberMe(!rememberMe)}
-                      >
-                        {rememberMe && <div className="w-2.5 h-2.5 bg-white rounded-full" />}
-                      </div>
-                      <span className="text-sm text-sunset-wine/60 font-bold">Recuérdame</span>
-                    </label>
-                    <button 
-                      onClick={() => setView('recover')}
-                      className="text-sm font-black text-sunset-orange hover:text-sunset-red transition-all"
-                    >
-                      ¿Perdiste la llave?
-                    </button>
-                  </div>
-
-                  <button 
-                    onClick={handleEmailAuth}
-                    disabled={loading}
-                    className="w-full py-5 sunset-gradient text-white font-black rounded-[2rem] shadow-2xl shadow-sunset-orange/30 flex items-center justify-center gap-3 group hover:scale-[1.02] active:scale-[0.98] transition-all mt-6 text-lg disabled:opacity-50"
-                  >
-                    {loading ? 'Cargando...' : 'Entrar'}
-                    <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
-                  </button>
-                </div>
-              </div>
-            ) : view === 'register' ? (
-              <div className="space-y-8">
-                <div>
-                  <h2 className="text-4xl font-black text-sunset-wine mb-2 tracking-tight">Registrarse</h2>
-                  <p className="text-sunset-wine/60 font-medium">Comienza tu viaje hacia el equilibrio.</p>
-                </div>
-
-                <div className="space-y-4">
-                  <button 
-                    onClick={handleGoogleLogin}
-                    disabled={loading}
-                    className="w-full py-5 bg-white border-2 border-rose-100 rounded-[2rem] flex items-center justify-center gap-3 hover:bg-rose-50 transition-all group disabled:opacity-50"
-                  >
-                    <svg className="w-6 h-6" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                    </svg>
-                    <span className="text-sm font-black text-sunset-wine">Registrarse con Google</span>
-                  </button>
-
-                  <div className="relative py-4">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-sunset-wine/5"></div>
-                    </div>
-                    <div className="relative flex justify-center text-[8px] uppercase tracking-[0.2em]">
-                      <span className="bg-white/0 px-4 text-sunset-wine/20 font-black">O por correo</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-5">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-sunset-wine/50 uppercase tracking-[0.2em] ml-2">Nombre de Usuario</label>
-                    <div className="relative">
-                      <User className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
-                      <input 
-                        type="text" 
-                        placeholder="Tu nombre" 
-                        className="w-full pl-14 pr-5 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-sunset-wine/50 uppercase tracking-[0.2em] ml-2">Correo Electrónico</label>
-                    <div className="relative">
-                      <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
-                      <input 
-                        type="email" 
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="correo@ejemplo.com" 
-                        className="w-full pl-14 pr-5 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-sunset-wine/50 uppercase tracking-[0.2em] ml-2">Contraseña</label>
-                    <div className="relative">
-                      <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
-                      <input 
-                        type={showPasswordRegister ? "text" : "password"} 
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Mínimo 8 caracteres" 
-                        className="w-full pl-14 pr-14 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium placeholder:text-sunset-wine/20"
-                      />
-                      <button 
-                        type="button"
-                        onClick={() => setShowPasswordRegister(!showPasswordRegister)}
-                        className="absolute right-5 top-1/2 -translate-y-1/2 text-sunset-wine/30 hover:text-sunset-wine transition-colors"
-                      >
-                        {showPasswordRegister ? <EyeOff size={20} /> : <Eye size={20} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-5 bg-white/40 backdrop-blur-md rounded-[2rem] border border-white/40">
-                    <p className="text-[11px] text-sunset-wine/60 leading-relaxed font-medium">
-                      Al unirte, aceptas nuestra <span className="text-sunset-orange font-black cursor-pointer">Esencia de Privacidad</span>.
-                    </p>
-                  </div>
-
-                  <button 
-                    onClick={handleEmailAuth}
-                    disabled={loading}
-                    className="w-full py-5 sunset-gradient text-white font-black rounded-[2rem] shadow-2xl shadow-sunset-orange/30 flex items-center justify-center gap-3 group hover:scale-[1.02] active:scale-[0.98] transition-all mt-6 text-lg disabled:opacity-50"
-                  >
-                    {loading ? 'Cargando...' : 'Unirse'}
-                    <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-8">
-                <div>
-                  <h2 className="text-4xl font-black text-sunset-wine mb-2 tracking-tight">Recuperar</h2>
-                  <p className="text-slate-500 font-medium">Te enviaremos una nueva llave a tu correo.</p>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Correo Electrónico</label>
-                    <div className="relative">
-                      <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-sunset-wine/30" size={20} />
-                      <input 
-                        type="email" 
-                        placeholder="correo@ejemplo.com" 
-                        className="w-full pl-14 pr-5 py-5 bg-white/50 border border-white/40 rounded-[2rem] focus:outline-none focus:ring-4 focus:ring-sunset-orange/10 transition-all text-sunset-wine font-medium"
-                      />
-                    </div>
-                  </div>
-
-                  <button 
-                    className="w-full py-5 sunset-gradient text-white font-black rounded-[2rem] shadow-2xl shadow-sunset-orange/30 flex items-center justify-center gap-3 group hover:scale-[1.02] active:scale-[0.98] transition-all mt-6 text-lg"
-                  >
-                    Enviar llave
-                    <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
-                  </button>
-
-                  <div className="text-center pt-2">
-                    <button 
-                      onClick={() => setView('login')}
-                      className="text-sm font-black text-sunset-wine/40 hover:text-sunset-orange transition-colors"
-                    >
-                      Volver a la puerta
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+        <div className="pt-6 border-t border-deep-teal/5 w-full">
+          <p className="text-[10px] text-deep-teal/20 font-black uppercase tracking-[0.4em]">Experiencia Vital</p>
+        </div>
+      </motion.div>
     </div>
   );
 }

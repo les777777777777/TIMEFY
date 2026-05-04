@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
@@ -18,10 +18,22 @@ export interface UserSnapshot {
 
 export type AIQueryType = 'why' | 'improve' | 'summary' | 'status' | 'open';
 
+// Cache for AI responses to save quota
+const thoughtCache: Record<string, { thought: string, timestamp: number }> = {};
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
 export const AIService = {
   async getMascotThought(snapshot: UserSnapshot, queryType: AIQueryType = 'status', userQuestion?: string): Promise<string> {
     if (!process.env.GEMINI_API_KEY) {
       return "Para una guía real, configura tu llave de API. Mientras tanto, sigue buscando el equilibrio.";
+    }
+
+    // Generate a cache key based on basic state data
+    const cacheKey = `${queryType}-${snapshot.tasksCompleted}-${snapshot.wellnessCompleted}-${snapshot.balance}-${userQuestion || ''}`;
+    const now = Date.now();
+    
+    if (thoughtCache[cacheKey] && (now - thoughtCache[cacheKey].timestamp < CACHE_TTL) && queryType !== 'open') {
+      return thoughtCache[cacheKey].thought;
     }
 
     const contextStr = `
@@ -42,38 +54,61 @@ export const AIService = {
       open: `El usuario pregunta: "${userQuestion}". Responde usando sus datos reales (Tareas: ${snapshot.tasksCompleted}/${snapshot.tasksTotal}, Balance: ${snapshot.balance}%, Racha: ${snapshot.streak}) para dar una respuesta fundamentada y no genérica.`
     };
 
-    try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          {
-            role: "user",
-            parts: [{
-              text: `Eres ${snapshot.mascotName}, el guardián de tiempo de Kairos. No eres un bot genérico, eres un analista de bienestar que conoce perfectamente al usuario.
-              
-              ${contextStr}
-              
-              INSTRUCCIÓN: ${instructions[queryType]}
-              
-              REGLAS CRÍTICAS:
-              - PROHIBIDO usar frases como "Vas bien" o "Sigue así" sin justificar con datos.
-              - DEBES mencionar al menos un dato numérico del contexto en tu respuesta.
-              - Máximo 2 líneas de texto.
-              - Tono humano y sabio.
-              - Idioma: Español. Sin emojis.`
-            }]
-          }
-        ],
-        config: {
-          temperature: 0.8,
-          maxOutputTokens: 120,
-        }
-      });
+    const maxRetries = 3;
+    let attempt = 0;
 
-      return response.text?.trim() || "La respuesta está en tu ritmo de hoy.";
-    } catch (error) {
-      console.error("AI Error:", error);
-      return "No puedo analizar tus datos ahora, pero tu esfuerzo sigue siendo válido.";
-    }
+    const executeWithRetry = async (): Promise<string> => {
+      try {
+        const response = await ai.models.generateContent({
+          model: "gemini-1.5-flash", // Stable and available version
+          contents: [
+            {
+              role: "user",
+              parts: [{
+                text: `Eres ${snapshot.mascotName}, el guardián de tiempo de Kairos. No eres un bot genérico, eres un analista de bienestar que conoce perfectamente al usuario.
+                
+                ${contextStr}
+                
+                INSTRUCCIÓN: ${instructions[queryType]}
+                
+                REGLAS CRÍTICAS:
+                - PROHIBIDO usar frases como "Vas bien" o "Sigue así" sin justificar con datos.
+                - DEBES mencionar al menos un dato numérico del contexto en tu respuesta.
+                - Máximo 2 líneas de texto.
+                - Tono humano y sabio.
+                - Idioma: Español. Sin emojis.`
+              }]
+            }
+          ],
+          config: {
+            temperature: 0.8,
+            maxOutputTokens: 120,
+          }
+        });
+
+        const result = response.text?.trim() || "La respuesta está en tu ritmo de hoy.";
+        
+        // Update cache
+        thoughtCache[cacheKey] = { thought: result, timestamp: Date.now() };
+        
+        return result;
+      } catch (error: any) {
+        // If it's a 429 error, wait and retry
+        const isRateLimit = error?.message?.includes("429") || error?.status === 429 || JSON.stringify(error).includes("429");
+        
+        if (isRateLimit && attempt < maxRetries) {
+          attempt++;
+          const waitTime = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+          console.warn(`AI Rate limited. Retrying in ${Math.round(waitTime)}ms (Attempt ${attempt}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          return executeWithRetry();
+        }
+        
+        console.error("AI Error after retries:", error);
+        return "Mi conexión con la esencia se está ajustando, pero sigue adelante.";
+      }
+    };
+
+    return executeWithRetry();
   }
 };

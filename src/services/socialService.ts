@@ -84,26 +84,45 @@ export const SocialService = {
     const path = `users/${user.uid}`;
     try {
       const snap = await getDoc(doc(db, 'users', user.uid));
-      let kairosId = snap.exists() ? snap.data().kairosId : null;
+      const existingData = snap.exists() ? snap.data() : {};
+      
+      let kairosId = existingData.kairosId || null;
       
       if (!kairosId) {
-        // Generate a simple ID if not exists: @kairos_XXXX
         kairosId = `@kairos_${Math.floor(1000 + Math.random() * 9000)}`;
       }
 
-      await setDoc(doc(db, 'users', user.uid), {
+      const newData = {
         uid: user.uid,
         kairosId,
-        name: user.displayName || profile.name || 'Usuario',
-        photoURL: user.photoURL || profile.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-        mascotName: profile.mascotName || 'Kairo',
-        streak: profile.streak || 0,
-        balance: profile.balance || 0,
+        name: existingData.name || user.displayName || profile.name || 'Usuario',
+        photoURL: existingData.photoURL || user.photoURL || profile.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+        mascotName: existingData.mascotName || profile.mascotName || 'Kairo',
+        streak: existingData.streak ?? profile.streak ?? 0,
+        balance: existingData.balance ?? profile.balance ?? 0,
         lastActive: serverTimestamp(),
-      }, { merge: true });
+      };
+
+      await setDoc(doc(db, 'users', user.uid), newData, { merge: true });
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, path);
     }
+  },
+
+  subscribeToProfile(callback: (profile: UserProfile | null) => void) {
+    const user = auth.currentUser;
+    if (!user) return () => {};
+
+    const path = `users/${user.uid}`;
+    return onSnapshot(doc(db, 'users', user.uid), (snap) => {
+      if (snap.exists()) {
+        callback(snap.data() as UserProfile);
+      } else {
+        callback(null);
+      }
+    }, (e) => {
+      handleFirestoreError(e, OperationType.LIST, path);
+    });
   },
 
   async getUser(uid: string): Promise<UserProfile | null> {

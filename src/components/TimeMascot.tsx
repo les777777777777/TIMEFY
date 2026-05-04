@@ -7,43 +7,66 @@ interface TimeMascotProps {
 }
 
 export const TimeMascot: React.FC<TimeMascotProps> = ({ streak, balance }) => {
-  // Evolution stages
+  // Moods based on balance
+  const getMood = () => {
+    if (balance < 30) return 'sad'; // Blue/Sad
+    if (balance < 50) return 'tired'; // Grey/Tired
+    if (balance < 80) return 'neutral'; // Yellow/Neutral
+    return 'happy'; // Red-Orange/Happy
+  };
+
+  const mood = getMood();
+
+  // Evolution stages - just scale for minimalism
   const getStage = (s: number) => {
-    if (s >= 16) return 4;
-    if (s >= 8) return 3;
-    if (s >= 4) return 2;
-    return 1;
+    if (s >= 16) return 3;
+    if (s >= 8) return 2;
+    if (s >= 4) return 1;
+    return 0;
   };
 
   const stage = getStage(streak);
 
-  // Visual properties based on stage and balance
-  const size = 100 + (stage * 30) + (balance / 5);
-  const opacity = 0.4 + (balance / 200);
-  const glow = balance > 70 ? '0 0 40px rgba(249, 115, 22, 0.6)' : '0 0 20px rgba(249, 115, 22, 0.2)';
+  // Visual properties based on mood
+  const getMoodConfig = () => {
+    switch (mood) {
+      case 'happy': return {
+        color: '#ff6b6b', // Soft Red-Orange
+        glow: 'rgba(255, 107, 107, 0.4)',
+        mouth: "M85 135 Q100 155 115 135" // Happy smile
+      };
+      case 'neutral': return {
+        color: '#fcc419', // emoji yellow
+        glow: 'rgba(252, 196, 25, 0.3)',
+        mouth: "M90 140 Q100 145 110 140" // Neutral smile
+      };
+      case 'tired': return {
+        color: '#adb5bd', // Soft Grey
+        glow: 'rgba(173, 181, 189, 0.2)',
+        mouth: "M90 145 Q100 140 110 145" // Tired flat
+      };
+      case 'sad': return {
+        color: '#4dabf7', // Soft Blue
+        glow: 'rgba(77, 171, 247, 0.3)',
+        mouth: "M85 150 Q100 135 115 150" // Sad curve
+      };
+      default: return {
+        color: '#fbbf24',
+        glow: 'rgba(251, 191, 36, 0.3)',
+        mouth: "M90 140 Q100 145 110 140"
+      };
+    }
+  };
 
-  // Messages based on state
+  const config = getMoodConfig();
+  const size = 130 + (stage * 20);
+
+  // Messages
   const getMessages = () => {
-    if (balance < 30) return [
-      "Me siento un poco débil... ¿descansamos?",
-      "Necesito un respiro, tú también.",
-      "El equilibrio es la clave, vamos a recuperarlo."
-    ];
-    if (balance > 80) return [
-      "¡Qué energía! Estamos en total equilibrio.",
-      "Me encanta cómo brillas hoy.",
-      "Siento una armonía perfecta en nuestro tiempo."
-    ];
-    if (streak > 15) return [
-      "Nuestra conexión es inquebrantable.",
-      "He evolucionado gracias a tu constancia.",
-      "Somos uno con el tiempo ahora."
-    ];
-    return [
-      "Estoy creciendo contigo.",
-      "Cada minuto cuenta para nuestra evolución.",
-      "Sigue así, me siento vivo."
-    ];
+    if (mood === 'sad') return ["Necesito un poco de motivación...", "¿Podemos intentar algo pequeño?"];
+    if (mood === 'tired') return ["Un respiro vendría bien.", "Paso a paso, está bien."];
+    if (mood === 'happy') return ["¡Me siento increíble hoy!", "¡Tu energía es contagiosa!"];
+    return ["Todo va por buen camino.", "Me gusta este equilibrio."];
   };
 
   const messages = getMessages();
@@ -52,291 +75,234 @@ export const TimeMascot: React.FC<TimeMascotProps> = ({ streak, balance }) => {
   React.useEffect(() => {
     const interval = setInterval(() => {
       setMessageIndex((prev) => (prev + 1) % messages.length);
-    }, 8000);
+    }, 6000);
     return () => clearInterval(interval);
   }, [messages.length]);
 
   return (
-    <div className="relative flex flex-col items-center justify-center py-12 overflow-hidden">
-      {/* Background Glow - Dynamic based on balance */}
+    <div className="relative flex flex-col items-center justify-center py-20 overflow-visible">
+      {/* Dynamic Multi-layered Aura */}
+      <div className="absolute inset-0 flex items-center justify-center -z-10">
+        <motion.div
+          animate={{
+            scale: [1, 1.3, 1],
+            opacity: [0.1, 0.2, 0.1],
+            rotate: [0, 90, 0],
+          }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+          style={{ backgroundColor: config.color }}
+          className="absolute w-[400px] h-[400px] rounded-[35%] blur-[110px]"
+        />
+        <motion.div
+          animate={{
+            scale: [1.3, 1, 1.3],
+            opacity: [0.12, 0.22, 0.12],
+            rotate: [0, -90, 0],
+          }}
+          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+          style={{ backgroundColor: config.color }}
+          className="absolute w-[450px] h-[450px] rounded-[45%] blur-[130px]"
+        />
+      </div>
+
+      {/* Floating Particles - More sophisticated */}
+      <div className="absolute inset-0 overflow-visible pointer-events-none -z-5">
+        {[...Array(8)].map((_, i) => (
+          <motion.div
+            key={i}
+            initial={{ 
+              x: Math.random() * 240 - 120, 
+              y: Math.random() * 240 - 120,
+              opacity: 0,
+              scale: Math.random() * 0.5 + 0.5
+            }}
+            animate={{
+              y: [-20, -60, -20],
+              x: [(Math.random() - 0.5) * 30, (Math.random() - 0.5) * 50, (Math.random() - 0.5) * 30],
+              opacity: [0, 0.5, 0],
+              scale: [1, 1.2, 1]
+            }}
+            transition={{
+              duration: 7 + Math.random() * 7,
+              repeat: Infinity,
+              delay: i * 1.2,
+              ease: "easeInOut"
+            }}
+            className="absolute w-2 h-2 rounded-full"
+            style={{ 
+              backgroundColor: config.color, 
+              filter: 'blur(2px)',
+              boxShadow: `0 0 10px ${config.color}`
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Circular Progress Ring - Representing Harmony */}
+      <div className="absolute inset-0 flex items-center justify-center -z-10 pointer-events-none">
+        <svg width={size + 100} height={size + 100} viewBox="0 0 240 240" className="opacity-40">
+          <circle
+            cx="120"
+            cy="120"
+            r="110"
+            fill="none"
+            stroke="white"
+            strokeWidth="1"
+            className="opacity-20"
+          />
+          <motion.circle
+            cx="120"
+            cy="120"
+            r="110"
+            fill="none"
+            stroke={config.color}
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray="691"
+            initial={{ strokeDashoffset: 691 }}
+            animate={{ strokeDashoffset: 691 - (691 * balance) / 100 }}
+            transition={{ duration: 2, ease: "easeOut" }}
+            className="drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]"
+          />
+        </svg>
+      </div>
+
+      {/* Mascot character with floating movement */}
       <motion.div
+        className="relative cursor-pointer z-10 flex items-center justify-center w-full"
         animate={{
-          scale: [1, 1.3, 1],
-          opacity: balance > 70 ? [0.15, 0.25, 0.15] : [0.05, 0.1, 0.05],
-          backgroundColor: balance > 70 ? ['#f97316', '#ec4899', '#f97316'] : ['#94a3b8', '#cbd5e1', '#94a3b8']
+          y: [0, -15, 0],
+          rotate: [0, 1, 0, -1, 0]
         }}
         transition={{
-          duration: 6,
+          duration: 8,
           repeat: Infinity,
           ease: "easeInOut"
         }}
-        className="absolute w-72 h-72 rounded-full blur-[100px]"
-      />
-
-      {/* Mascot Container */}
-      <motion.div
-        className="relative cursor-pointer z-10"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >
         <AnimatePresence mode="wait">
           <motion.div
-            key={stage}
-            initial={{ opacity: 0, scale: 0.8, rotate: -10 }}
+            key={`${stage}-${mood}`}
+            initial={{ opacity: 0, scale: 0.9, rotate: -2 }}
             animate={{ opacity: 1, scale: 1, rotate: 0 }}
-            exit={{ opacity: 0, scale: 1.2, rotate: 10 }}
-            transition={{ type: "spring", damping: 15 }}
-            className="relative flex items-center justify-center"
+            exit={{ opacity: 0, scale: 1.1, rotate: 2 }}
             style={{ width: size, height: size }}
+            className="flex items-center justify-center drop-shadow-xl"
           >
-            {/* Organic SVG Mascot */}
-            <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-[0_0_30px_rgba(249,115,22,0.3)]">
+            <svg viewBox="0 0 200 200" className="w-full h-full overflow-visible">
               <defs>
-                <linearGradient id="mascotGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#f97316" stopOpacity={opacity} />
-                  <stop offset="50%" stopColor="#ef4444" stopOpacity={opacity * 0.9} />
-                  <stop offset="100%" stopColor="#ec4899" stopOpacity={opacity * 0.7} />
+                <linearGradient id="bodyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="white" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor={config.color} />
                 </linearGradient>
-                <filter id="goo">
-                  <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
-                  <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -10" result="goo" />
+                <filter id="softGlow">
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
                 </filter>
               </defs>
 
-              <g filter="url(#goo)">
-                {/* Core Blob with Pulse */}
-                <motion.circle
-                  cx="100"
-                  cy="100"
-                  r={35 + (stage * 6)}
-                  fill="url(#mascotGradient)"
-                  animate={{
-                    r: [35 + (stage * 6), 42 + (stage * 6), 35 + (stage * 6)],
-                    scaleX: [1, 1.05, 0.95, 1],
-                    scaleY: [1, 0.95, 1.05, 1],
-                  }}
-                  transition={{
-                    duration: 4,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }}
+              {/* Organic Blob Body - Irregular and animated */}
+              <motion.path
+                fill={config.color}
+                animate={{
+                  d: [
+                    "M100,25 C145,25 175,55 175,100 C175,145 145,175 100,175 C55,175 25,145 25,100 C25,55 55,25 100,25",
+                    "M100,30 C150,25 180,60 170,105 C160,150 140,180 95,170 C50,160 20,135 30,95 C40,55 50,35 100,30",
+                    "M100,25 C140,30 170,50 175,95 C180,140 150,170 105,175 C60,180 30,150 25,105 C20,60 60,20 100,25"
+                  ]
+                }}
+                transition={{
+                  duration: 10,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+              />
+              <motion.path
+                fill="url(#bodyGradient)"
+                opacity="0.6"
+                animate={{
+                  d: [
+                    "M100,25 C145,25 175,55 175,100 C175,145 145,175 100,175 C55,175 25,145 25,100 C25,55 55,25 100,25",
+                    "M100,30 C150,25 180,60 170,105 C160,150 140,180 95,170 C50,160 20,135 30,95 C40,55 50,35 100,30",
+                    "M100,25 C140,30 170,50 175,95 C180,140 150,170 105,175 C60,180 30,150 25,105 C20,60 60,20 100,25"
+                  ]
+                }}
+                transition={{
+                  duration: 10,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+              />
+
+              {/* Character Face - Asymmetric and expressive */}
+              <motion.g 
+                className="pointer-events-none"
+                animate={{
+                  y: [0, -2, 0],
+                  rotate: [0, 1, -1, 0]
+                }}
+                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+              >
+                {/* Eyes - Softening the symmetry */}
+                <motion.ellipse
+                  cx="72" cy="98" rx="4.5" ry="6.5"
+                  fill="#2d3436"
+                  animate={{ scaleY: [1, 1, 0.1, 1, 1] }}
+                  transition={{ duration: 4, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }}
+                />
+                <motion.ellipse
+                  cx="128" cy="96" rx="4.2" ry="6.2"
+                  fill="#2d3436"
+                  animate={{ scaleY: [1, 1, 0.1, 1, 1] }}
+                  transition={{ duration: 4, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1], delay: 0.1 }}
                 />
 
-                {/* Evolution Blobs */}
-                {stage >= 2 && (
-                  <motion.circle
-                    cx="145" cy="75" r="22"
-                    fill="url(#mascotGradient)"
-                    animate={{ cx: [145, 155, 145], cy: [75, 65, 75] }}
-                    transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-                  />
-                )}
-                {stage >= 2 && (
-                  <motion.circle
-                    cx="55" cy="125" r="18"
-                    fill="url(#mascotGradient)"
-                    animate={{ cx: [55, 45, 55], cy: [125, 135, 125] }}
-                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                  />
-                )}
-                {stage >= 3 && (
-                  <motion.circle
-                    cx="100" cy="35" r="20"
-                    fill="url(#mascotGradient)"
-                    animate={{ cy: [35, 25, 35], scale: [1, 1.15, 1] }}
-                    transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                  />
-                )}
-                {stage >= 3 && (
-                  <motion.circle
-                    cx="155" cy="135" r="14"
-                    fill="url(#mascotGradient)"
-                    animate={{ cx: [155, 165, 155], scale: [1, 1.25, 1] }}
-                    transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                  />
-                )}
-                {stage >= 4 && (
-                  <motion.circle
-                    cx="45" cy="55" r="12"
-                    fill="url(#mascotGradient)"
-                    animate={{ cx: [45, 35, 45], cy: [55, 45, 55] }}
-                    transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
-                  />
-                )}
-                {stage >= 4 && (
-                  <motion.circle
-                    cx="135" cy="165" r="16"
-                    fill="url(#mascotGradient)"
-                    animate={{ cy: [165, 175, 165], scale: [1, 1.4, 1] }}
-                    transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
-                  />
-                )}
-              </g>
-
-              {/* Character Face */}
-              <g className="pointer-events-none">
-                {/* Eyes */}
-                <motion.g
-                  animate={{
-                    y: [0, -2, 0],
-                  }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  {/* Left Eye */}
-                  <motion.circle
-                    cx="85" cy="95" r="4"
-                    fill="white"
-                    animate={{ scaleY: [1, 1, 0.1, 1, 1] }}
-                    transition={{ duration: 3, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }}
-                  />
-                  {/* Right Eye */}
-                  <motion.circle
-                    cx="115" cy="95" r="4"
-                    fill="white"
-                    animate={{ scaleY: [1, 1, 0.1, 1, 1] }}
-                    transition={{ duration: 3, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }}
-                  />
-                </motion.g>
-
-                {/* Mouth */}
+                {/* Mouth based on mood */}
                 <motion.path
-                  d={balance > 50 ? "M90 110 Q100 120 110 110" : "M90 115 Q100 110 110 115"}
-                  stroke="white"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
+                  d={config.mouth}
                   fill="none"
-                  animate={{
-                    d: balance > 50 
-                      ? ["M90 110 Q100 120 110 110", "M90 112 Q100 122 110 112", "M90 110 Q100 120 110 110"]
-                      : ["M90 115 Q100 110 110 115", "M90 117 Q100 112 110 117", "M90 115 Q100 110 110 115"]
+                  stroke="#2d3436"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  animate={{ 
+                    scale: [1, 1.05, 1],
+                    x: [0, 1, -1, 0]
                   }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                  transition={{ duration: 5, repeat: Infinity }}
                 />
 
-                {/* Blush (when happy) */}
-                {balance > 70 && (
+                {/* Blushed cheeks */}
+                {mood === 'happy' && (
                   <>
-                    <circle cx="75" cy="105" r="5" fill="#f472b6" opacity="0.4" />
-                    <circle cx="125" cy="105" r="5" fill="#f472b6" opacity="0.4" />
+                    <circle cx="58" cy="115" r="7" fill="black" opacity="0.05" />
+                    <circle cx="142" cy="112" r="7" fill="black" opacity="0.05" />
                   </>
                 )}
-              </g>
-
-              {/* Web/Network Connections */}
-              <g stroke="white" strokeWidth="0.5" strokeOpacity="0.2" fill="none">
-                {stage >= 2 && (
-                  <motion.path
-                    d="M100 100 Q120 90 145 75"
-                    animate={{ d: ["M100 100 Q120 90 145 75", "M100 100 Q130 80 155 65", "M100 100 Q120 90 145 75"] }}
-                    transition={{ duration: 5, repeat: Infinity }}
-                  />
-                )}
-                {stage >= 2 && (
-                  <motion.path
-                    d="M100 100 Q80 110 55 125"
-                    animate={{ d: ["M100 100 Q80 110 55 125", "M100 100 Q70 130 45 135", "M100 100 Q80 110 55 125"] }}
-                    transition={{ duration: 4, repeat: Infinity, delay: 0.5 }}
-                  />
-                )}
-                {stage >= 3 && (
-                  <motion.path
-                    d="M145 75 Q120 55 100 35"
-                    animate={{ strokeOpacity: [0.1, 0.3, 0.1] }}
-                    transition={{ duration: 3, repeat: Infinity }}
-                  />
-                )}
-                {stage >= 4 && (
-                  <>
-                    <motion.path
-                      d="M100 35 Q70 45 45 55"
-                      animate={{ strokeOpacity: [0.1, 0.4, 0.1] }}
-                      transition={{ duration: 4, repeat: Infinity, delay: 1 }}
-                    />
-                    <motion.path
-                      d="M155 135 Q145 150 135 165"
-                      animate={{ strokeOpacity: [0.1, 0.4, 0.1] }}
-                      transition={{ duration: 5, repeat: Infinity, delay: 0.5 }}
-                    />
-                    <motion.path
-                      d="M55 125 Q95 145 135 165"
-                      animate={{ strokeOpacity: [0.1, 0.3, 0.1] }}
-                      transition={{ duration: 6, repeat: Infinity }}
-                    />
-                  </>
-                )}
-              </g>
-
-              {/* High Energy Particles */}
-              {stage >= 4 && balance > 60 && (
-                <g>
-                  {[...Array(6)].map((_, i) => (
-                    <motion.circle
-                      key={i}
-                      r="1.5"
-                      fill="white"
-                      initial={{ opacity: 0 }}
-                      animate={{
-                        opacity: [0, 0.8, 0],
-                        cx: [100, 100 + Math.cos(i * 60) * 80],
-                        cy: [100, 100 + Math.sin(i * 60) * 80],
-                      }}
-                      transition={{
-                        duration: 3 + Math.random() * 2,
-                        repeat: Infinity,
-                        delay: i * 0.5,
-                      }}
-                    />
-                  ))}
-                </g>
-              )}
+              </motion.g>
             </svg>
-
-            {/* Glassmorphic Core Highlight */}
-            <motion.div
-              animate={{
-                rotate: 360,
-                scale: [1, 1.1, 1],
-              }}
-              transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-              className="absolute w-1/3 h-1/3 rounded-full border border-white/30 bg-white/10 backdrop-blur-[2px]"
-            />
           </motion.div>
         </AnimatePresence>
       </motion.div>
 
-      {/* Message Bubble with Glassmorphism */}
-      <motion.div
-        key={messageIndex}
-        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, scale: 1.05 }}
-        className="mt-8 px-8 py-4 bg-white/40 backdrop-blur-xl border border-white/40 rounded-[2rem] shadow-[0_8px_32px_rgba(0,0,0,0.05)] max-w-[280px] text-center"
-      >
-        <p className="text-sm font-bold text-slate-800 leading-relaxed">
-          {messages[messageIndex]}
-        </p>
-      </motion.div>
-
-      {/* Streak Indicator Refined */}
-      <div className="mt-6 flex flex-col items-center gap-2">
-        <div className="flex gap-1.5">
-          {[...Array(Math.min(streak, 7))].map((_, i) => (
-            <motion.div
-              key={i}
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: i * 0.1 }}
-              className={`w-2.5 h-2.5 rounded-full ${i < streak ? 'bg-primary shadow-[0_0_10px_rgba(79,70,229,0.5)]' : 'bg-slate-200'}`}
-            />
-          ))}
-          {streak > 7 && (
-            <span className="text-[10px] font-black text-primary ml-1 self-center">+{streak - 7}</span>
-          )}
-        </div>
-        <div className="px-3 py-1 bg-slate-100 rounded-full">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Racha de {streak} días</span>
-        </div>
+      {/* Message Bubble - Smooth transitions */}
+      <div className="h-20 flex items-center justify-center mt-4">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={messageIndex}
+            initial={{ opacity: 0, y: 10, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.9 }}
+            transition={{ duration: 0.4 }}
+            className="px-6 py-3 bg-white/60 backdrop-blur-lg border border-white/40 rounded-3xl shadow-lg max-w-[260px] text-center z-20"
+          >
+            <p className="text-sm font-bold text-slate-800 tracking-tight">
+              {messages[messageIndex]}
+            </p>
+          </motion.div>
+        </AnimatePresence>
       </div>
+
     </div>
   );
 };

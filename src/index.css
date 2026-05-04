@@ -7,10 +7,13 @@
   --color-sunset-orange: #f97316;
   --color-sunset-red: #ef4444;
   --color-sunset-wine: #991b1b;
-  --color-sunset-pink: #ec4899;
-  --color-mint: #2dd4bf;
+  --color-sunset-pink: #ff7597;
+  --color-mint: #41b8a2;
   --color-sky: #0ea5e9;
   --color-wellness: #ec4899;
+  --color-bento-bg: #fdfaf7;
+  --color-deep-teal: #1d4d4f;
+  --color-soft-peach: #fff5f2;
 }
 
 @layer base {
@@ -21,7 +24,11 @@
 
 @layer components {
   .glass-card {
-    @apply bg-white/40 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.05)] rounded-[2.5rem];
+    @apply bg-white border border-white/40 shadow-[0_12px_48px_rgba(0,0,0,0.04)] rounded-[3rem];
+  }
+
+  .bento-card {
+    @apply rounded-[3rem] p-6 transition-all hover:scale-[1.02] active:scale-[0.98];
   }
   
   .glass-button {

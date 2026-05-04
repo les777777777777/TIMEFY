@@ -82,44 +82,48 @@ export const FriendsView: React.FC = () => {
   );
 
   return (
-    <div className="space-y-8 pb-32 px-8 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar">
-      <header className="flex justify-between items-start">
+    <div className="space-y-10 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar">
+      <header className="flex justify-between items-end">
         <div className="space-y-1">
-          <h2 className="text-4xl font-black text-sunset-wine tracking-tight">Compañía</h2>
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-sunset-pink animate-pulse" />
+            <p className="text-[10px] font-black text-sunset-pink uppercase tracking-[0.3em] italic">Social</p>
+          </div>
+          <h2 className="text-4xl font-black text-deep-teal tracking-tight leading-none italic">Sintonía</h2>
           <div 
             onClick={handleCopyId}
-            className="flex items-center gap-2 cursor-pointer group"
+            className="flex items-center gap-2 cursor-pointer group mt-2"
           >
-            <p className="text-sunset-orange font-black text-xs uppercase tracking-widest bg-sunset-orange/5 px-2 py-1 rounded-lg group-hover:bg-sunset-orange/10 transition-all">
-              {myProfile?.kairosId || '@cargando...'}
+            <p className="text-deep-teal/40 font-black text-[9px] uppercase tracking-widest bg-slate-100 px-3 py-1.5 rounded-full group-hover:bg-slate-200 transition-all flex items-center gap-2">
+              ID: {myProfile?.kairosId || '@cargando...'}
+              {copied ? <Check size={10} className="text-mint" /> : <Copy size={10} />}
             </p>
-            {copied ? <Check size={12} className="text-mint" /> : <Copy size={12} className="text-sunset-wine/20" />}
           </div>
         </div>
         <motion.button 
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setIsInviteOpen(true)}
-          className="px-6 py-3 sunset-gradient text-white rounded-2xl flex items-center gap-2 shadow-xl shadow-sunset-orange/20 font-black text-[10px] uppercase tracking-widest"
+          className="w-16 h-16 bg-deep-teal text-white rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-deep-teal/20"
         >
-          Invitar <Plus size={14} />
+          <Plus size={32} />
         </motion.button>
       </header>
 
-      {/* Friends List */}
+      {/* Friends List - Leaderboard Style */}
       <div className="space-y-6">
-        <div className="flex justify-between items-center px-1">
-          <h4 className="text-[10px] font-black text-sunset-wine/40 uppercase tracking-[0.2em]">Mis Acompañantes</h4>
+        <div className="flex justify-between items-center px-2">
+          <h4 className="text-[10px] font-black text-deep-teal/40 uppercase tracking-[0.2em] italic">Comunidad Activa</h4>
           <button 
             onClick={() => setIsSearchOpen(true)}
-            className="text-[10px] font-black text-sunset-orange uppercase tracking-widest flex items-center gap-1"
+            className="text-[10px] font-black text-deep-teal uppercase tracking-widest flex items-center gap-2"
           >
-            Buscar <Search size={12} />
+            <Search size={14} /> Buscar
           </button>
         </div>
 
         {friends.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4">
+          <div className="space-y-4">
             {friends.map((friend) => {
               const active = isUserActive(friend.lastActive);
               return (
@@ -127,37 +131,40 @@ export const FriendsView: React.FC = () => {
                   key={friend.uid}
                   whileHover={{ y: -4 }}
                   onClick={() => setSelectedFriend(friend)}
-                  className={`glass-card p-5 flex items-center justify-between border-none shadow-xl cursor-pointer transition-all duration-500 rounded-[2rem] ${active ? 'bg-white/90' : 'bg-white/40 opacity-70'}`}
+                  className={`bento-card p-6 flex items-center justify-between border border-slate-100 cursor-pointer transition-all duration-500 ${active ? 'bg-white shadow-xl shadow-black/[0.02]' : 'bg-slate-50 opacity-60'}`}
                 >
-                  <div className="flex items-center gap-5">
-                    <div className="w-16 h-16 sunset-gradient rounded-2xl flex items-center justify-center text-white shadow-lg shadow-sunset-orange/20 relative overflow-hidden">
+                  <div className="flex items-center gap-6">
+                    <div className="w-16 h-16 rounded-[2rem] bg-slate-50 p-1 flex items-center justify-center relative shadow-inner overflow-hidden">
                        <div className="scale-[0.3]">
                           <TimeMascot streak={friend.streak} balance={friend.balance} />
                        </div>
                     </div>
                     <div>
-                      <h3 className={`text-xl font-black ${active ? 'text-sunset-wine' : 'text-sunset-wine/40'}`}>{friend.name}</h3>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-sunset-orange/60 uppercase tracking-widest">{friend.kairosId}</span>
-                        <div className="w-1 h-1 rounded-full bg-sunset-wine/20" />
-                        <span className="text-[10px] font-bold text-sunset-wine/30 uppercase tracking-widest">Racha: {friend.streak}</span>
+                      <h3 className={`text-xl font-black italic tracking-tight ${active ? 'text-deep-teal' : 'text-deep-teal/40'}`}>{friend.name}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] font-black text-sunset-pink uppercase tracking-widest">{friend.kairosId}</span>
+                        <div className="w-1 h-1 rounded-full bg-slate-200" />
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{friend.streak} ✨</span>
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${active ? 'bg-mint shadow-[0_0_12px_rgba(16,185,129,0.8)]' : 'bg-sunset-wine/10'}`} />
-                    <p className="text-[9px] font-black text-sunset-wine/20 uppercase tracking-widest">{active ? 'En sintonía' : 'Ausente'}</p>
+                  <div className="flex flex-col items-end gap-3">
+                    <div className={`w-3 h-3 rounded-full ${active ? 'bg-mint shadow-[0_0_15px_rgba(65,184,162,0.6)] animate-pulse' : 'bg-slate-200'}`} />
+                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">{active ? 'ONLINE' : 'OFFLINE'}</p>
                   </div>
                 </motion.div>
               );
             })}
           </div>
         ) : (
-          <div className="text-center py-24 space-y-6">
-            <div className="w-20 h-20 bg-white/40 rounded-full flex items-center justify-center mx-auto border-2 border-dashed border-sunset-orange/20">
-              <Users size={32} className="text-sunset-wine/10" />
+          <div className="bg-slate-50 rounded-[3.5rem] py-24 px-12 text-center space-y-6 border border-dashed border-slate-200">
+            <div className="w-20 h-20 bg-white rounded-[2rem] flex items-center justify-center mx-auto shadow-sm">
+              <Users size={32} className="text-slate-200" />
             </div>
-            <p className="text-sm font-black text-sunset-wine/30 uppercase tracking-widest px-8">“No necesitas una red social,<br/>necesitas compañía.”</p>
+            <div className="space-y-2">
+               <p className="text-sm font-black text-deep-teal tracking-tighter italic">Sincroniza tu camino</p>
+               <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest leading-relaxed px-4">Invita a tus amigos para compartir la racha y progresar juntos.</p>
+            </div>
           </div>
         )}
       </div>
