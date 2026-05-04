@@ -60,7 +60,7 @@ export const AIService = {
     const executeWithRetry = async (): Promise<string> => {
       try {
         const response = await ai.models.generateContent({
-          model: "gemini-1.5-flash", // Stable and available version
+          model: "gemini-3-flash-preview", // Updated to the recommended model
           contents: [
             {
               role: "user",

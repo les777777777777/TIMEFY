@@ -292,26 +292,33 @@ export default function App() {
 
   // Firebase Auth Lifecycle
   useEffect(() => {
+    console.log("Initializing Auth Observer...");
     const unsubscribe = onAuthStateChanged(auth, (u) => {
+      console.log("Auth State Changed:", u ? "Logged In" : "Logged Out");
       if (u) {
         setUser(u);
         setIsAuthenticated(true);
         setUserProfile({
           name: u.displayName || 'Usuario de Kairos',
           email: u.email || '',
-          photo: u.photoURL || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + u.uid
+          photo: u.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.uid}`
         });
+        
+        // Sync profile but don't block
         SocialService.syncProfile({
           name: u.displayName || undefined,
           photoURL: u.photoURL || undefined,
           streak,
           balance,
           mascotName
-        });
+        }).catch(err => console.error("Error syncing profile on auth change:", err));
       } else {
         setUser(null);
         setIsAuthenticated(false);
       }
+      setIsLoadingAuth(false);
+    }, (error) => {
+      console.error("Auth Observer Error:", error);
       setIsLoadingAuth(false);
     });
     return () => unsubscribe();
@@ -1324,7 +1331,7 @@ export default function App() {
   }
 
   if (!isAuthenticated) {
-    return <AuthScreen onLogin={() => setIsAuthenticated(true)} />;
+    return <AuthScreen />;
   }
 
   return (
@@ -2538,26 +2545,40 @@ export default function App() {
   );
 }
 
-function AuthScreen({ onLogin }: { onLogin: () => void }) {
+function AuthScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
+    
     try {
-      await signInWithPopup(auth, provider);
-      onLogin();
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      
+      console.log("Attempting Google Login via Popup...");
+      const result = await signInWithPopup(auth, provider);
+      console.log("Login Success:", result.user.email);
+      // We don't call anything here; onAuthStateChanged will handle the transition
     } catch (err: any) {
-      console.error("Login Error", err);
-      if (err.code === 'auth/popup-closed-by-user') {
+      console.error("Login Error Details:", err);
+      
+      const errorCode = err.code;
+      const errorMessage = err.message;
+
+      if (errorCode === 'auth/popup-closed-by-user') {
         setError('El inicio de sesión fue cancelado.');
-      } else if (err.code === 'auth/popup-blocked') {
-        setError('El navegador bloqueó la ventana de inicio de sesión.');
+      } else if (errorCode === 'auth/popup-blocked') {
+        setError('El navegador bloqueó la ventana emergente. Por favor, permite ventanas emergentes para este sitio.');
+      } else if (errorCode === 'auth/operation-not-allowed') {
+        setError('El inicio de sesión con Google no está habilitado en la consola de Firebase.');
+      } else if (errorCode === 'auth/network-request-failed') {
+        setError('Error de red. Verifica tu conexión a internet.');
+      } else if (errorCode === 'auth/unauthorized-domain') {
+        setError('Error de dominio: Agrega este dominio en la consola de Firebase -> Authentication -> Settings -> Authorized Domains.');
       } else {
-        setError('Error al conectar con Google.');
+        setError(`Error al conectar con Google: ${errorMessage || errorCode}`);
       }
     } finally {
       setLoading(false);
