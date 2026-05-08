@@ -183,38 +183,7 @@ const MOCK_NOTIFICATIONS = [
 import { TimeMascot } from './components/TimeMascot';
 import { AIService, UserSnapshot, AIQueryType } from './services/aiService';
 
-const SectionSummary = ({ 
-  title, 
-  stats, 
-  delay = 0 
-}: { 
-  title: string, 
-  stats: { label: string, count: number, color: string, icon: React.ReactNode }[],
-  delay?: number
-}) => (
-  <motion.div 
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay }}
-    className="bg-white/40 backdrop-blur-xl rounded-[2.5rem] p-6 border border-white/60 shadow-sm space-y-4"
-  >
-    <div className="flex items-center gap-2">
-      <div className="w-1.5 h-1.5 rounded-full bg-deep-teal/20" />
-      <h3 className="text-[10px] font-black text-deep-teal/40 uppercase tracking-[0.2em]">{title}</h3>
-    </div>
-    <div className="grid grid-cols-3 gap-3">
-      {stats.map((stat, i) => (
-        <div key={i} className="flex flex-col gap-2">
-          <div className={`w-full py-3 rounded-2xl ${stat.color} flex flex-col items-center gap-0.5`}>
-            <div className="opacity-60 scale-75">{stat.icon}</div>
-            <span className="text-sm font-black tracking-tight">{stat.count}</span>
-          </div>
-          <p className="text-[7px] font-black text-deep-teal/30 uppercase text-center tracking-[0.2em]">{stat.label}</p>
-        </div>
-      ))}
-    </div>
-  </motion.div>
-);
+
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -738,40 +707,7 @@ export default function App() {
                   transition={{ delay: 0.3 }}
                   className="bg-bento-bg rounded-[3.5rem] p-8 shadow-xl shadow-black/[0.02] border border-slate-100 flex flex-col gap-8"
                 >
-                  <div className="flex justify-between items-start">
-                     <h3 className="text-xl font-black text-deep-teal tracking-tighter">Plan de Armonía</h3>
-                  </div>
 
-                  <div className="grid grid-cols-3 gap-3">
-                     {[
-                       { 
-                         label: 'Total', 
-                         count: tasks.length + routine.length + wellness.length, 
-                         color: 'bg-mint/10 text-mint', 
-                         icon: <Clock size={16} /> 
-                       },
-                       { 
-                         label: 'Hecho', 
-                         count: tasks.filter(t => t.completed).length + routine.filter(r => r.completed).length + wellness.filter(w => w.completed).length, 
-                         color: 'bg-sunset-pink/10 text-sunset-pink', 
-                         icon: <Check size={16} /> 
-                       },
-                       { 
-                         label: 'Próximo', 
-                         count: tasks.filter(t => !t.completed).length + routine.filter(r => !r.completed).length + wellness.filter(w => !w.completed).length, 
-                         color: 'bg-sunset-orange/10 text-sunset-orange', 
-                         icon: <Zap size={16} /> 
-                       }
-                     ].map((stat, i) => (
-                         <div key={i} className="flex flex-col gap-3">
-                            <div className={`w-full py-4 rounded-3xl ${stat.color} flex flex-col items-center gap-1`}>
-                               <div className="opacity-70">{stat.icon}</div>
-                               <span className="text-lg font-black">{stat.count}</span>
-                            </div>
-                            <p className="text-[9px] font-black text-slate-400 uppercase text-center tracking-widest">{stat.label}</p>
-                         </div>
-                      ))}
-                  </div>
 
                   <div className="bg-white rounded-[2.5rem] p-6 shadow-inner relative">
                     <div className="flex justify-between items-center mb-4">
@@ -846,15 +782,7 @@ export default function App() {
               </motion.button>
             </header>
 
-            {/* Harmony Summary for Tasks */}
-            <SectionSummary 
-              title="Plan de Armonía: Metas"
-              stats={[
-                { label: 'Total', count: tasks.length, color: 'bg-mint/10 text-mint', icon: <Clock size={14} /> },
-                { label: 'Hecho', count: tasks.filter(t => t.completed).length, color: 'bg-sunset-pink/10 text-sunset-pink', icon: <Check size={14} /> },
-                { label: 'Próximo', count: tasks.filter(t => !t.completed).length, color: 'bg-sunset-orange/10 text-sunset-orange', icon: <Zap size={14} /> }
-              ]}
-            />
+
 
             {/* Featured Course Card */}
             <motion.div 
@@ -1045,15 +973,7 @@ export default function App() {
               </motion.button>
             </header>
 
-            {/* Harmony Summary for Alarms */}
-            <SectionSummary 
-              title="Plan de Armonía: Ritmo"
-              stats={[
-                { label: 'Total', count: routine.length + wellness.length, color: 'bg-mint/10 text-mint', icon: <Clock size={14} /> },
-                { label: 'Hecho', count: routine.filter(it => it.completed).length + wellness.filter(it => it.completed).length, color: 'bg-sunset-pink/10 text-sunset-pink', icon: <Check size={14} /> },
-                { label: 'Próximo', count: routine.filter(it => !it.completed).length + wellness.filter(it => !it.completed).length, color: 'bg-sunset-orange/10 text-sunset-orange', icon: <Zap size={14} /> }
-              ]}
-            />
+
 
             <div className="space-y-4">
               {alarms.map((alarm) => (
@@ -1163,15 +1083,7 @@ export default function App() {
               <h2 className="text-4xl font-black text-deep-teal tracking-tight leading-none italic">Logros</h2>
             </header>
 
-            {/* Harmony Summary for stats */}
-            <SectionSummary 
-              title="Plan de Armonía: Global"
-              stats={[
-                { label: 'Total', count: tasks.length + routine.length + wellness.length, color: 'bg-mint/10 text-mint', icon: <Clock size={14} /> },
-                { label: 'Hecho', count: tasks.filter(it => it.completed).length + routine.filter(it => it.completed).length + wellness.filter(it => it.completed).length, color: 'bg-sunset-pink/10 text-sunset-pink', icon: <Check size={14} /> },
-                { label: 'Próximo', count: tasks.filter(it => !it.completed).length + routine.filter(it => !it.completed).length + wellness.filter(it => !it.completed).length, color: 'bg-sunset-orange/10 text-sunset-orange', icon: <Zap size={14} /> }
-              ]}
-            />
+
 
             {/* Performance Overview Bento */}
             <div className="grid grid-cols-2 gap-4">
