@@ -241,18 +241,16 @@ export default function App() {
 
       // Subscribe to Tasks
       unsubscribeTasks = SocialService.subscribeToTasks((syncedTasks) => {
-        if (syncedTasks.length > 0) {
-          setTasks(syncedTasks as Task[]);
-        }
+        setTasks(syncedTasks as Task[]);
       });
 
       // Subscribe to Wellness/Routine (Habits)
       unsubscribeHabits = SocialService.subscribeToHabits((syncedHabits) => {
-        const wellnessItems = syncedHabits.filter(h => h.category === 'wellness');
-        const routineItems = syncedHabits.filter(h => h.category === 'routine');
+        const wellnessItems = syncedHabits.filter(h => h.group === 'wellness');
+        const routineItems = syncedHabits.filter(h => h.group === 'routine');
         
-        if (wellnessItems.length > 0) setWellness(wellnessItems as WellnessReminder[]);
-        if (routineItems.length > 0) setRoutine(routineItems as RoutineItem[]);
+        setWellness(wellnessItems as WellnessReminder[]);
+        setRoutine(routineItems as RoutineItem[]);
       });
 
       // Subscribe to Alarms
@@ -404,13 +402,34 @@ export default function App() {
     setTimeout(refreshAIThought, 500);
   };
 
+  const [preferences, setPreferences] = useState(() => {
+    const saved = localStorage.getItem('kairos_preferences');
+    return saved ? JSON.parse(saved) : {
+      darkMode: false,
+      pushNotifications: true,
+      alarmSound: 'Zen'
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('kairos_preferences', JSON.stringify(preferences));
+    if (preferences.darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [preferences]);
+
   const backgroundStyle = useMemo(() => {
+    if (preferences.darkMode) {
+      return 'from-slate-950 via-slate-900 to-slate-950';
+    }
     const hour = currentTime.getHours();
     if (hour >= 5 && hour < 12) return 'from-amber-50 via-orange-50 to-sky-100'; // Morning
     if (hour >= 12 && hour < 17) return 'from-sky-100 via-blue-50 to-white'; // Afternoon
     if (hour >= 17 && hour < 20) return 'from-orange-100 via-rose-100 to-sunset-wine/20'; // Sunset
     return 'from-slate-900 via-sunset-wine/40 to-slate-900'; // Night
-  }, [currentTime]);
+  }, [currentTime, preferences.darkMode]);
 
   const [isNight, setIsNight] = useState(currentTime.getHours() >= 20 || currentTime.getHours() < 5);
 
@@ -444,11 +463,6 @@ export default function App() {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
-  const [preferences, setPreferences] = useState({
-    darkMode: false,
-    pushNotifications: true,
-    alarmSound: 'Zen'
-  });
 
   const [userProfile, setUserProfile] = useState({
     name: 'Usuario de Kairos',
@@ -636,13 +650,13 @@ export default function App() {
                   <span className="w-1.5 h-1.5 rounded-full bg-sunset-orange animate-pulse" />
                   <p className="text-[10px] font-black text-sunset-orange uppercase tracking-[0.3em] italic">Resumen</p>
                 </div>
-                <h2 className="text-4xl font-black text-deep-teal tracking-tight leading-none italic">Mi Centro</h2>
+                <h2 className={`text-4xl font-black ${theme.textTitle} tracking-tight leading-none italic`}>Mi Centro</h2>
               </header>
 
               <motion.div 
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-sunset-pink rounded-[3.5rem] p-8 text-white relative overflow-hidden h-[240px]"
+                className={`${preferences.darkMode ? 'bg-slate-900' : 'bg-sunset-pink'} rounded-[3.5rem] p-8 text-white relative overflow-hidden h-[240px]`}
               >
                 {/* Abstract shapes behind */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-12 translate-x-12 blur-3xl" />
@@ -705,7 +719,7 @@ export default function App() {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
-                className="bg-white rounded-[3.5rem] p-4 shadow-xl shadow-black/[0.02] border border-slate-100 flex flex-col justify-between h-[420px] relative overflow-hidden"
+                className={`${theme.card} rounded-[3.5rem] p-4 ${theme.shadow} border ${theme.border} flex flex-col justify-between h-[420px] relative overflow-hidden`}
               >
                 <div className="absolute top-0 right-0 p-8 opacity-5">
                    <div className="w-32 h-32 bg-deep-teal rounded-full" />
@@ -732,20 +746,18 @@ export default function App() {
                 </div>
               </motion.div>
 
-              {/* Stats and Learning cards column */}
-              <div className="flex flex-col gap-6">
-                {/* Secondary Stat Card */}
-                <motion.div 
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="bg-bento-bg rounded-[3.5rem] p-8 shadow-xl shadow-black/[0.02] border border-slate-100 flex flex-col gap-8"
-                >
-
-
-                  <div className="bg-white rounded-[2.5rem] p-6 shadow-inner relative">
-                    <div className="flex justify-between items-center mb-4">
-                       <h4 className="text-sm font-black text-deep-teal tracking-tight">Evolución de Energía</h4>
+                {/* Stats and Learning cards column */}
+                <div className="flex flex-col gap-6">
+                  {/* Secondary Stat Card */}
+                  <motion.div 
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className={`${theme.cardSecondary} rounded-[3.5rem] p-8 ${theme.shadow} border ${theme.border} flex flex-col gap-8`}
+                  >
+                    <div className={`${theme.card} rounded-[2.5rem] p-6 shadow-inner relative`}>
+                      <div className="flex justify-between items-center mb-4">
+                        <h4 className={`text-sm font-black ${theme.textTitle} tracking-tight`}>Evolución de Energía</h4>
                        <span className="text-[10px] font-black text-sunset-orange uppercase tracking-widest">{balance}% prom.</span>
                     </div>
                     {/* Simplified Graph Visual */}
@@ -804,13 +816,13 @@ export default function App() {
                   <span className="w-1.5 h-1.5 rounded-full bg-sunset-pink animate-pulse" />
                   <p className="text-[10px] font-black text-sunset-pink uppercase tracking-[0.3em] italic">Proceso</p>
                 </div>
-                <h2 className="text-4xl font-black text-deep-teal tracking-tight leading-none italic">Metas</h2>
+                <h2 className={`text-4xl font-black ${theme.textTitle} tracking-tight leading-none italic`}>Metas</h2>
               </div>
               <motion.button 
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setIsTaskModalOpen(true)}
-                className="w-16 h-16 bg-deep-teal text-white rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-deep-teal/20"
+                className={`w-16 h-16 ${theme.textTitle === 'text-white' ? 'bg-mint text-slate-950' : 'bg-deep-teal text-white'} rounded-[2.5rem] flex items-center justify-center shadow-2xl`}
               >
                 <Plus size={32} />
               </motion.button>
@@ -822,25 +834,25 @@ export default function App() {
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-[#d5e8e1] rounded-[3.5rem] p-8 relative overflow-hidden group min-h-[220px] flex flex-col justify-between"
+              className={`${preferences.darkMode ? 'bg-slate-900' : 'bg-[#d5e8e1]'} rounded-[3.5rem] p-8 relative overflow-hidden group min-h-[220px] flex flex-col justify-between`}
             >
                <div className="absolute top-0 right-0 p-6 opacity-20 transition-transform group-hover:scale-110 duration-500">
-                  <FileText size={140} className="rotate-12 text-deep-teal" />
+                  <FileText size={140} className={`rotate-12 ${preferences.darkMode ? 'text-white/10' : 'text-deep-teal'}`} />
                </div>
                <div className="space-y-4 relative z-10">
-                  <div className="bg-white/40 backdrop-blur-xl px-4 py-2 rounded-full w-fit border border-white/20">
-                     <span className="text-[10px] font-black uppercase tracking-widest text-deep-teal">Objetivo Semanal</span>
+                  <div className={`${preferences.darkMode ? 'bg-white/10' : 'bg-white/40'} backdrop-blur-xl px-4 py-2 rounded-full w-fit border border-white/20`}>
+                     <span className={`text-[10px] font-black uppercase tracking-widest ${preferences.darkMode ? 'text-white/70' : 'text-deep-teal'}`}>Objetivo Semanal</span>
                   </div>
-                  <h3 className="text-3xl font-black text-deep-teal tracking-tight leading-tight max-w-[200px]">Sincronía de Hábitos</h3>
+                  <h3 className={`text-3xl font-black ${preferences.darkMode ? 'text-white' : 'text-deep-teal'} tracking-tight leading-tight max-w-[200px]`}>Sincronía de Hábitos</h3>
                </div>
                <div className="flex gap-4 relative z-10 pt-4">
                   <div className="flex flex-col">
-                     <span className="text-[10px] font-black text-deep-teal/40 uppercase tracking-widest leading-none">Lecciones</span>
-                     <span className="text-xl font-black text-deep-teal">#{tasks.length}</span>
+                     <span className={`text-[10px] font-black ${preferences.darkMode ? 'text-white/30' : 'text-deep-teal/40'} uppercase tracking-widest leading-none`}>Lecciones</span>
+                     <span className={`text-xl font-black ${preferences.darkMode ? 'text-white/90' : 'text-deep-teal'}`}>#{tasks.length}</span>
                   </div>
                   <div className="flex flex-col">
-                     <span className="text-[10px] font-black text-deep-teal/40 uppercase tracking-widest leading-none">Minutos</span>
-                     <span className="text-xl font-black text-deep-teal">120m</span>
+                     <span className={`text-[10px] font-black ${preferences.darkMode ? 'text-white/30' : 'text-deep-teal/40'} uppercase tracking-widest leading-none`}>Minutos</span>
+                     <span className={`text-xl font-black ${preferences.darkMode ? 'text-white/90' : 'text-deep-teal'}`}>120m</span>
                   </div>
                </div>
             </motion.div>
@@ -852,16 +864,16 @@ export default function App() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   onClick={() => toggleTask(task.id)}
-                  className={`bento-card flex items-center justify-between cursor-pointer border border-slate-100 ${task.completed ? 'bg-slate-50 opacity-60' : 'bg-white shadow-xl shadow-black/[0.02]'}`}
+                  className={`bento-card flex items-center justify-between cursor-pointer border ${theme.border} ${task.completed ? theme.itemBg + ' opacity-60' : theme.card + ' ' + theme.shadow}`}
                 >
                   <div className="flex items-center gap-5">
                     <div className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center shadow-inner transition-colors ${
-                      task.completed ? 'bg-slate-200 text-slate-400' : 'bg-sunset-pink/10 text-sunset-pink'
+                      task.completed ? theme.itemBg + ' ' + theme.textMuted : 'bg-sunset-pink/10 text-sunset-pink'
                     }`}>
                       {task.completed ? <Check size={24} /> : <Zap size={24} />}
                     </div>
                     <div className="space-y-0.5">
-                      <span className={`text-lg font-black transition-all leading-tight block ${task.completed ? 'text-slate-400 line-through' : 'text-deep-teal'}`}>
+                      <span className={`text-lg font-black transition-all leading-tight block ${task.completed ? theme.textMuted + ' line-through' : theme.textTitle}`}>
                         {task.title}
                       </span>
                       <div className="flex items-center gap-2">
@@ -888,7 +900,7 @@ export default function App() {
                 <span className="w-1.5 h-1.5 rounded-full bg-mint animate-pulse" />
                 <p className="text-[10px] font-black text-mint uppercase tracking-[0.3em] italic">Esencia</p>
               </div>
-              <h2 className="text-4xl font-black text-deep-teal tracking-tight leading-none italic">Mi Vida</h2>
+              <h2 className={`text-4xl font-black ${theme.textTitle} tracking-tight leading-none italic`}>Mi Vida</h2>
             </header>
 
             <div className="grid grid-cols-2 gap-4">
@@ -897,17 +909,17 @@ export default function App() {
                   key={item.id}
                   whileHover={{ y: -4 }}
                   onClick={() => toggleWellness(item.id)}
-                  className={`bento-card flex flex-col gap-6 cursor-pointer border border-slate-100 ${
-                    item.completed ? 'bg-slate-50 opacity-60' : 'bg-white shadow-xl shadow-black/[0.02]'
+                  className={`bento-card flex flex-col gap-6 cursor-pointer border ${theme.border} ${
+                    item.completed ? theme.itemBg + ' opacity-60' : theme.card + ' ' + theme.shadow
                   }`}
                 >
                   <div className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center shadow-inner ${
-                    item.completed ? 'bg-slate-200 text-white' : 
-                    item.type === 'water' ? 'bg-sky-100 text-sky-500' :
-                    item.type === 'food' ? 'bg-orange-100 text-orange-500' :
-                    item.type === 'medicine' ? 'bg-indigo-100 text-indigo-500' :
-                    item.type === 'rest' ? 'bg-purple-100 text-purple-500' :
-                    'bg-slate-100 text-slate-500'
+                    item.completed ? theme.itemBg + ' ' + theme.text : 
+                    item.type === 'water' ? 'bg-sky-100/20 text-sky-500' :
+                    item.type === 'food' ? 'bg-orange-100/20 text-orange-500' :
+                    item.type === 'medicine' ? 'bg-indigo-100/20 text-indigo-500' :
+                    item.type === 'rest' ? 'bg-purple-100/20 text-purple-500' :
+                    theme.itemBg + ' ' + theme.textMuted
                   }`}>
                     {item.type === 'water' ? <Droplets size={24} /> :
                      item.type === 'food' ? <Utensils size={24} /> :
@@ -916,7 +928,7 @@ export default function App() {
                      <Sparkles size={24} />}
                   </div>
                   <div className="space-y-1">
-                    <h3 className={`text-base font-black leading-tight ${item.completed ? 'text-slate-400 line-through' : 'text-deep-teal'}`}>
+                    <h3 className={`text-base font-black leading-tight ${item.completed ? theme.textMuted + ' line-through' : theme.textTitle}`}>
                       {item.label}
                     </h3>
                     <div className="flex items-center gap-2">
@@ -1014,7 +1026,7 @@ export default function App() {
                 <motion.div 
                   key={alarm.id}
                   whileHover={{ scale: 1.02 }}
-                  className="bg-white rounded-[2.5rem] p-6 flex justify-between items-center shadow-xl shadow-black/[0.01] border border-slate-50"
+                  className={`${theme.card} rounded-[2.5rem] p-6 flex justify-between items-center shadow-xl ${theme.shadow} border ${theme.border}`}
                 >
                    <div className="flex items-center gap-5">
                       <div className={`w-14 h-14 rounded-3xl flex items-center justify-center text-white ${
@@ -1024,13 +1036,13 @@ export default function App() {
                          <AlarmClock size={24} />
                       </div>
                       <div>
-                         <h4 className="text-2xl font-black text-deep-teal tracking-tight">{alarm.time}</h4>
-                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mt-1">{alarm.title} • {alarm.days.join(', ')}</p>
+                         <h4 className={`text-2xl font-black ${theme.textTitle} tracking-tight`}>{alarm.time}</h4>
+                         <p className={`text-[10px] font-black ${theme.textMuted} uppercase tracking-widest leading-none mt-1`}>{alarm.title} • {alarm.days.join(', ')}</p>
                       </div>
                    </div>
                    <button 
                      onClick={() => toggleAlarm(alarm.id)}
-                     className={`w-12 h-6 rounded-full p-1 transition-colors relative ${alarm.enabled ? 'bg-mint' : 'bg-slate-200'}`}
+                     className={`w-12 h-6 rounded-full p-1 transition-colors relative ${alarm.enabled ? 'bg-mint' : (preferences.darkMode ? 'bg-slate-800' : 'bg-slate-200')}`}
                    >
                       <motion.div 
                         animate={{ x: alarm.enabled ? 24 : 0 }}
@@ -1051,7 +1063,7 @@ export default function App() {
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-[3.5rem] p-8 shadow-xl shadow-black/[0.02] border border-slate-100"
+              className={`${theme.card} rounded-[3.5rem] p-8 shadow-xl ${theme.shadow} border ${theme.border}`}
             >
               <div className="flex justify-between items-center mb-6">
                  <div className="space-y-0.5">
@@ -1069,10 +1081,10 @@ export default function App() {
               
               <div className="grid grid-cols-4 gap-4">
                 {[
-                  { type: 'water' as const, icon: <Droplets size={24} />, color: 'bg-sky-50 text-sky-500', activeColor: 'bg-sky-500 text-white' },
-                  { type: 'food' as const, icon: <Utensils size={24} />, color: 'bg-orange-50 text-orange-500', activeColor: 'bg-orange-500 text-white' },
-                  { type: 'rest' as const, icon: <Moon size={24} />, color: 'bg-purple-50 text-purple-500', activeColor: 'bg-purple-500 text-white' },
-                  { type: 'medicine' as const, icon: <Pill size={24} />, color: 'bg-indigo-50 text-indigo-500', activeColor: 'bg-indigo-500 text-white' },
+                  { type: 'water' as const, icon: <Droplets size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-sky-400' : 'bg-sky-50 text-sky-500', activeColor: 'bg-sky-500 text-white' },
+                  { type: 'food' as const, icon: <Utensils size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-orange-400' : 'bg-orange-50 text-orange-500', activeColor: 'bg-orange-500 text-white' },
+                  { type: 'rest' as const, icon: <Moon size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-purple-400' : 'bg-purple-50 text-purple-500', activeColor: 'bg-purple-500 text-white' },
+                  { type: 'medicine' as const, icon: <Pill size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-indigo-400' : 'bg-indigo-50 text-indigo-500', activeColor: 'bg-indigo-500 text-white' },
                 ].filter(h => enabledHabitTypes.includes(h.type)).map((habit) => {
                   const isDone = wellness.some(w => w.type === habit.type && w.completed);
                   return (
@@ -1110,13 +1122,13 @@ export default function App() {
         return (
           <div className="space-y-8 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar">
             {/* Organic User Profile Header */}
-            <div className="bg-white rounded-[4rem] p-10 shadow-xl shadow-black/[0.02] border border-slate-100 flex flex-col items-center text-center gap-6 relative overflow-hidden">
+            <div className={`${theme.card} rounded-[4rem] p-10 ${theme.shadow} border ${theme.border} flex flex-col items-center text-center gap-6 relative overflow-hidden`}>
                <div className="absolute top-0 inset-x-0 h-24 sunset-gradient opacity-10" />
                
                <div className="relative">
                   <motion.div 
                     whileHover={{ scale: 1.05 }}
-                    className="w-32 h-32 rounded-[3.5rem] bg-white p-1.5 shadow-2xl relative z-10 overflow-hidden"
+                    className={`w-32 h-32 rounded-[3.5rem] ${theme.card} p-1.5 shadow-2xl relative z-10 overflow-hidden`}
                   >
                     <img 
                       src={user?.photoURL || userProfile.photo} 
@@ -1132,7 +1144,7 @@ export default function App() {
                </div>
 
                <div className="space-y-1 relative z-10">
-                  <h2 className="text-3xl font-black text-deep-teal tracking-tighter italic">
+                  <h2 className={`text-3xl font-black ${theme.textTitle} tracking-tighter italic`}>
                      {user?.displayName || userProfile.name}
                   </h2>
                   <p className="text-[10px] font-black text-sunset-orange uppercase tracking-[0.3em]">
@@ -1142,28 +1154,28 @@ export default function App() {
 
                {/* Key Stats Bar */}
                <div className="grid grid-cols-2 gap-4 w-full pt-4">
-                  <div className="bg-rose-50/50 rounded-[2.5rem] p-6 space-y-2 border border-rose-100/50">
+                  <div className={`${preferences.darkMode ? 'bg-rose-950/20' : 'bg-rose-50/50'} rounded-[2.5rem] p-6 space-y-2 border ${preferences.darkMode ? 'border-rose-900/30' : 'border-rose-100/50'}`}>
                      <p className="text-[9px] font-black text-rose-300 uppercase tracking-widest leading-none">Racha Vital</p>
                      <div className="flex items-center justify-center gap-2">
                         <Zap size={20} className="text-sunset-orange" fill="currentColor" />
-                        <span className="text-2xl font-black text-deep-teal leading-none">{streak}</span>
+                        <span className={`text-2xl font-black ${theme.textTitle} leading-none`}>{streak}</span>
                      </div>
                   </div>
-                  <div className="bg-deep-teal/[0.02] rounded-[2.5rem] p-6 space-y-2 border border-slate-100">
-                     <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none">Esencia Hoy</p>
+                  <div className={`${theme.itemBg} rounded-[2.5rem] p-6 space-y-2 border ${theme.border}`}>
+                     <p className={`text-[9px] font-black ${theme.textMuted} uppercase tracking-widest leading-none`}>Esencia Hoy</p>
                      <div className="flex items-center justify-center gap-2">
-                        <Clock size={20} className="text-deep-teal" fill="currentColor" />
-                        <span className="text-2xl font-black text-deep-teal leading-none font-mono">{balance}%</span>
+                        <Clock size={20} className={theme.textTitle} fill="currentColor" />
+                        <span className={`text-2xl font-black ${theme.textTitle} leading-none font-mono`}>{balance}%</span>
                      </div>
                   </div>
                </div>
             </div>
 
             {/* Mascot State Card */}
-            <div className="bg-slate-900 rounded-[4rem] p-10 text-white relative overflow-hidden group">
-               <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-sunset-orange/20 rounded-full blur-[100px] group-hover:bg-sunset-orange/30 transition-colors duration-1000" />
+            <div className={`${preferences.darkMode ? 'bg-slate-900' : 'bg-deep-teal'} rounded-[4rem] p-10 text-white relative overflow-hidden group shadow-xl`}>
+               <div className={`absolute top-[-20%] right-[-10%] w-64 h-64 ${preferences.darkMode ? 'bg-sunset-orange/20' : 'bg-white/10'} rounded-full blur-[100px] group-hover:opacity-60 transition-opacity duration-1000`} />
                <div className="flex items-center gap-8 relative z-10">
-                  <div className="w-24 h-24 bg-white/10 backdrop-blur-xl rounded-[2.5rem] flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <div className={`w-24 h-24 ${preferences.darkMode ? 'bg-white/10' : 'bg-white/20'} backdrop-blur-xl rounded-[2.5rem] flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/10`}>
                      <div className="scale-75">
                         <TimeMascot streak={streak} balance={balance} />
                      </div>
@@ -1184,19 +1196,19 @@ export default function App() {
             </div>
 
             {/* Stats Visualization Section */}
-            <div className="bg-white rounded-[4rem] p-10 shadow-xl shadow-black/[0.02] border border-slate-100 space-y-8">
+            <div className={`${theme.card} rounded-[4rem] p-10 ${theme.shadow} border ${theme.border} space-y-8`}>
               <header className="flex justify-between items-center">
                  <div className="space-y-1">
-                    <h3 className="text-2xl font-black text-deep-teal tracking-tighter italic leading-none">Progreso</h3>
-                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none">Análisis de ritmo</p>
+                    <h3 className={`text-2xl font-black ${theme.textTitle} tracking-tighter italic leading-none`}>Progreso</h3>
+                    <p className={`text-[9px] font-black ${theme.textMuted} uppercase tracking-widest leading-none`}>Análisis de ritmo</p>
                  </div>
-                 <div className="bg-slate-50 p-1.5 rounded-full flex gap-1">
+                 <div className={`${theme.itemBg} p-1.5 rounded-full flex gap-1`}>
                     {['week', 'month'].map(p => (
                       <button 
                         key={p}
                         onClick={() => setStatsPeriod(p as any)}
                         className={`px-5 py-2.5 text-[9px] font-black rounded-full uppercase tracking-widest transition-all ${
-                          statsPeriod === p ? 'bg-deep-teal text-white shadow-xl' : 'text-slate-400'
+                          statsPeriod === p ? 'bg-deep-teal text-white shadow-xl' : theme.textMuted
                         }`}
                       >
                         {p === 'week' ? 'Semana' : 'Mes'}
@@ -1214,11 +1226,11 @@ export default function App() {
                         <stop offset="95%" stopColor={statsPeriod === 'week' ? '#41b8a2' : '#ff7597'} stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f8fafc" />
-                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fontSize: 9, fontWeight: 900, fill: '#cbd5e1', letterSpacing: '0.1em'}} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={preferences.darkMode ? '#ffffff10' : "#f8fafc"} />
+                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fontSize: 9, fontWeight: 900, fill: preferences.darkMode ? '#94a3b8' : '#cbd5e1', letterSpacing: '0.1em'}} />
                     <YAxis hide />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: 'rgba(29, 77, 79, 0.95)', borderRadius: '24px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)', color: 'white' }}
+                      contentStyle={{ backgroundColor: preferences.darkMode ? '#1e293b' : 'rgba(29, 77, 79, 0.95)', borderRadius: '24px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)', color: 'white' }}
                       itemStyle={{ color: 'white', fontWeight: 900, fontSize: '12px' }}
                     />
                     <Area 
@@ -1235,10 +1247,10 @@ export default function App() {
               </div>
 
               {/* Achievements Grid */}
-              <div className="space-y-6 pt-6 border-t border-slate-50">
+              <div className={`space-y-6 pt-6 border-t ${theme.border}`}>
                  <div className="flex justify-between items-center">
-                    <h4 className="text-[10px] font-black text-deep-teal uppercase tracking-[0.3em]">Logros Coleccionados</h4>
-                    <span className="text-[10px] font-black text-sunset-orange bg-rose-50 px-3 py-1 rounded-full">{achievements.length} / {ACHIEVEMENTS_LIST.length}</span>
+                    <h4 className={`text-[10px] font-black ${theme.textTitle} uppercase tracking-[0.3em]`}>Logros Coleccionados</h4>
+                    <span className={`text-[10px] font-black text-sunset-orange ${preferences.darkMode ? 'bg-rose-950/20' : 'bg-rose-50'} px-3 py-1 rounded-full`}>{achievements.length} / {ACHIEVEMENTS_LIST.length}</span>
                  </div>
                  <div className="grid grid-cols-4 gap-4">
                     {ACHIEVEMENTS_LIST.map((ach) => {
@@ -1248,7 +1260,7 @@ export default function App() {
                            key={ach.title}
                            whileHover={isUnlocked ? { scale: 1.1, rotate: 5 } : {}}
                            className={`aspect-square rounded-3xl flex items-center justify-center text-2xl shadow-sm transition-all relative group ${
-                             isUnlocked ? 'bg-amber-50 text-amber-500 border border-amber-100 shadow-amber-100/50' : 'bg-slate-50 text-slate-200 grayscale'
+                             isUnlocked ? 'bg-amber-50 text-amber-500 border border-amber-100 shadow-amber-100/50' : `${theme.itemBg} ${theme.textMuted} grayscale`
                            }`}
                          >
                            {ach.icon}
@@ -1266,20 +1278,20 @@ export default function App() {
             </div>
 
             {/* Account Settings Compact Card */}
-            <div className="bg-white rounded-[3.5rem] p-6 shadow-xl shadow-black/[0.01] border border-slate-100 grid grid-cols-2 gap-3">
+            <div className={`${theme.card} rounded-[3.5rem] p-6 ${theme.shadow} border ${theme.border} grid grid-cols-2 gap-3`}>
                <button 
                  onClick={() => setIsPreferencesOpen(true)}
-                 className="p-6 bg-slate-50 rounded-3xl flex flex-col items-center gap-3 hover:bg-slate-100 transition-colors"
+                 className={`p-6 ${theme.itemBg} rounded-3xl flex flex-col items-center gap-3 hover:opacity-80 transition-opacity`}
                >
-                 <Settings size={20} className="text-slate-400" />
-                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Configuración</span>
+                 <Settings size={20} className={theme.textMuted} />
+                 <span className={`text-[9px] font-black uppercase tracking-widest ${theme.textMuted}`}>Configuración</span>
                </button>
                <button 
                  onClick={() => signOut(auth)}
-                 className="p-6 bg-rose-50/50 rounded-3xl flex flex-col items-center gap-3 hover:bg-rose-50 transition-colors"
+                 className={`p-6 ${preferences.darkMode ? 'bg-rose-950/20' : 'bg-rose-50/50'} rounded-3xl flex flex-col items-center gap-3 hover:bg-rose-100/20 transition-colors`}
                >
                  <LogOut size={20} className="text-rose-400" />
-                 <span className="text-[9px] font-black uppercase tracking-widest text-rose-500">Salir</span>
+                 <span className={`text-[9px] font-black uppercase tracking-widest text-rose-500`}>Salir</span>
                </button>
             </div>
           </div>
@@ -1290,6 +1302,36 @@ export default function App() {
         return null;
     }
   };
+
+  const lightTheme = {
+    bg: 'bg-slate-50',
+    card: 'bg-white',
+    cardSecondary: 'bg-bento-bg',
+    text: 'text-slate-900',
+    textTitle: 'text-deep-teal',
+    textMuted: 'text-slate-500',
+    itemBg: 'bg-slate-100',
+    border: 'border-slate-100',
+    shadow: 'shadow-xl shadow-black/[0.02]',
+    modalBg: 'bg-white',
+    inputBg: 'bg-slate-50'
+  };
+
+  const darkTheme = {
+    bg: 'bg-slate-950',
+    card: 'bg-slate-900',
+    cardSecondary: 'bg-slate-800',
+    text: 'text-slate-100',
+    textTitle: 'text-white',
+    textMuted: 'text-slate-400',
+    itemBg: 'bg-slate-800',
+    border: 'border-slate-800/50',
+    shadow: 'shadow-xl shadow-black/[0.2]',
+    modalBg: 'bg-slate-900',
+    inputBg: 'bg-slate-800'
+  };
+
+  const theme = preferences.darkMode ? darkTheme : lightTheme;
 
   if (isLoadingAuth) {
     return (
@@ -1331,11 +1373,11 @@ export default function App() {
   }
 
   if (!isAuthenticated) {
-    return <AuthScreen />;
+    return <AuthScreen darkMode={preferences.darkMode} />;
   }
 
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-slate-50 relative overflow-hidden">
+    <div className={`max-w-md mx-auto min-h-screen relative overflow-hidden transition-colors duration-300 ${theme.bg} ${theme.text}`}>
       {/* Background Decorative Elements */}
       <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
       <div className="absolute bottom-[-5%] left-[-5%] w-48 h-48 bg-wellness/5 rounded-full blur-3xl" />
@@ -1345,33 +1387,33 @@ export default function App() {
         {isTaskModalOpen && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsTaskModalOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl">
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className={`relative w-full max-w-sm ${theme.modalBg} ${theme.text} rounded-3xl p-6 shadow-2xl`}>
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">Nueva Tarea</h2>
                 <button 
                   onClick={() => setIsTaskCategoryModalOpen(true)}
-                  className="p-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors"
+                  className={`p-2 ${theme.itemBg} ${theme.textMuted} rounded-xl hover:bg-primary/10 hover:text-primary transition-colors`}
                 >
                   <Plus size={16} />
                 </button>
               </div>
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Título</label>
-                  <input type="text" placeholder="Ej: Estudiar React" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" value={newTask.title} onChange={(e) => setNewTask({...newTask, title: e.target.value})} />
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Título</label>
+                  <input type="text" placeholder="Ej: Estudiar React" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${theme.text}`} value={newTask.title} onChange={(e) => setNewTask({...newTask, title: e.target.value})} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Categoría</label>
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Categoría</label>
                   <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto no-scrollbar">
                     {taskCategories.map((cat) => (
-                      <button key={cat.id} onClick={() => setNewTask({...newTask, category: cat.id})} className={`p-2 text-[10px] font-bold uppercase rounded-xl border transition-all ${newTask.category === cat.id ? 'bg-primary text-white border-primary' : 'bg-white text-slate-400 border-slate-100'}`}>
+                      <button key={cat.id} onClick={() => setNewTask({...newTask, category: cat.id})} className={`p-2 text-[10px] font-bold uppercase rounded-xl border transition-all ${newTask.category === cat.id ? 'bg-primary text-white border-primary' : `${theme.card} ${theme.textMuted} ${theme.border}`}`}>
                         {cat.name}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button onClick={() => setIsTaskModalOpen(false)} className="flex-1 p-4 bg-slate-100 text-slate-600 font-bold rounded-2xl">Cancelar</button>
+                  <button onClick={() => setIsTaskModalOpen(false)} className={`flex-1 p-4 ${theme.itemBg} ${theme.textMuted} font-bold rounded-2xl`}>Cancelar</button>
                   <button onClick={() => {
                     if (!newTask.title) return;
                     SocialService.saveTask({ title: newTask.title, completed: false, category: newTask.category });
@@ -1390,47 +1432,47 @@ export default function App() {
         {isEventModalOpen && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsEventModalOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl">
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className={`relative w-full max-w-sm ${theme.modalBg} ${theme.text} rounded-3xl p-6 shadow-2xl`}>
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">Nuevo Evento</h2>
                 <button 
                   onClick={() => setIsEventCategoryModalOpen(true)}
-                  className="p-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors"
+                  className={`p-2 ${theme.itemBg} ${theme.textMuted} rounded-xl hover:bg-primary/10 hover:text-primary transition-colors`}
                 >
                   <Plus size={16} />
                 </button>
               </div>
               <div className="space-y-4 max-h-[70vh] overflow-y-auto no-scrollbar pr-1">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Título</label>
-                  <input type="text" placeholder="Ej: Reunión" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" value={newEvent.title} onChange={(e) => setNewEvent({...newEvent, title: e.target.value})} />
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Título</label>
+                  <input type="text" placeholder="Ej: Reunión" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${theme.text}`} value={newEvent.title} onChange={(e) => setNewEvent({...newEvent, title: e.target.value})} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-sunset-wine/40 uppercase tracking-widest">Inicio</label>
-                    <input type="time" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none" value={newEvent.startTime} onChange={(e) => setNewEvent({...newEvent, startTime: e.target.value})} />
+                    <input type="time" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none`} value={newEvent.startTime} onChange={(e) => setNewEvent({...newEvent, startTime: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-sunset-wine/40 uppercase tracking-widest">Fin</label>
-                    <input type="time" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none" value={newEvent.endTime} onChange={(e) => setNewEvent({...newEvent, endTime: e.target.value})} />
+                    <input type="time" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none`} value={newEvent.endTime} onChange={(e) => setNewEvent({...newEvent, endTime: e.target.value})} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Ubicación</label>
-                  <input type="text" placeholder="Ej: Zoom o Oficina" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none" value={newEvent.location} onChange={(e) => setNewEvent({...newEvent, location: e.target.value})} />
+                  <input type="text" placeholder="Ej: Zoom o Oficina" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none`} value={newEvent.location} onChange={(e) => setNewEvent({...newEvent, location: e.target.value})} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Categoría</label>
                   <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto no-scrollbar">
                     {eventCategories.map((cat) => (
-                      <button key={cat.id} onClick={() => setNewEvent({...newEvent, type: cat.id})} className={`p-2 text-[10px] font-bold uppercase rounded-xl border transition-all ${newEvent.type === cat.id ? 'bg-primary text-white border-primary' : 'bg-white text-slate-400 border-slate-100'}`}>
+                      <button key={cat.id} onClick={() => setNewEvent({...newEvent, type: cat.id})} className={`p-2 text-[10px] font-bold uppercase rounded-xl border transition-all ${newEvent.type === cat.id ? 'bg-primary text-white border-primary' : `${theme.card} ${theme.textMuted} ${theme.border}`}`}>
                         {cat.name}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button onClick={() => setIsEventModalOpen(false)} className="flex-1 p-4 bg-slate-100 text-slate-600 font-bold rounded-2xl">Cancelar</button>
+                  <button onClick={() => setIsEventModalOpen(false)} className={`flex-1 p-4 ${theme.itemBg} ${theme.textMuted} font-bold rounded-2xl`}>Cancelar</button>
                   <button onClick={() => {
                     if (!newEvent.title) return;
                     setEvents([...events, { id: Date.now().toString(), ...newEvent }]);
@@ -1449,37 +1491,37 @@ export default function App() {
         {isLocationModalOpen && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsLocationModalOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl">
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className={`relative w-full max-w-sm ${theme.modalBg} ${theme.text} rounded-3xl p-6 shadow-2xl`}>
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">Nueva Ubicación</h2>
                 <button 
                   onClick={() => setIsLocationCategoryModalOpen(true)}
-                  className="p-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors"
+                  className={`p-2 ${theme.itemBg} ${theme.textMuted} rounded-xl hover:bg-primary/10 hover:text-primary transition-colors`}
                 >
                   <Plus size={16} />
                 </button>
               </div>
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Nombre</label>
-                  <input type="text" placeholder="Ej: Biblioteca" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none" value={newLocation.name} onChange={(e) => setNewLocation({...newLocation, name: e.target.value})} />
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Nombre</label>
+                  <input type="text" placeholder="Ej: Biblioteca" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${theme.text}`} value={newLocation.name} onChange={(e) => setNewLocation({...newLocation, name: e.target.value})} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Horas estimadas</label>
-                  <input type="number" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none" value={newLocation.time} onChange={(e) => setNewLocation({...newLocation, time: Number(e.target.value)})} />
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Horas estimadas</label>
+                  <input type="number" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${theme.text}`} value={newLocation.time} onChange={(e) => setNewLocation({...newLocation, time: Number(e.target.value)})} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Categoría</label>
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Categoría</label>
                   <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto no-scrollbar">
                     {locationCategories.map((cat) => (
-                      <button key={cat.id} onClick={() => setNewLocation({...newLocation, category: cat.id})} className={`p-2 text-[10px] font-bold uppercase rounded-xl border transition-all ${newLocation.category === cat.id ? 'bg-primary text-white border-primary' : 'bg-white text-slate-400 border-slate-100'}`}>
+                      <button key={cat.id} onClick={() => setNewLocation({...newLocation, category: cat.id})} className={`p-2 text-[10px] font-bold uppercase rounded-xl border transition-all ${newLocation.category === cat.id ? 'bg-primary text-white border-primary' : `${theme.card} ${theme.textMuted} ${theme.border}`}`}>
                         {cat.name}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button onClick={() => setIsLocationModalOpen(false)} className="flex-1 p-4 bg-slate-100 text-slate-600 font-bold rounded-2xl">Cancelar</button>
+                  <button onClick={() => setIsLocationModalOpen(false)} className={`flex-1 p-4 ${theme.itemBg} ${theme.textMuted} font-bold rounded-2xl`}>Cancelar</button>
                   <button onClick={() => {
                     if (!newLocation.name) return;
                     setLocations([...locations, { id: Date.now().toString(), ...newLocation }]);
@@ -1498,40 +1540,40 @@ export default function App() {
         {isRoutineModalOpen && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsRoutineModalOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl">
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className={`relative w-full max-w-sm ${theme.modalBg} ${theme.text} rounded-3xl p-6 shadow-2xl`}>
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">Nueva Rutina</h2>
                 <button 
                   onClick={() => setIsRoutineCategoryModalOpen(true)}
-                  className="p-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors"
+                  className={`p-2 ${theme.itemBg} ${theme.textMuted} rounded-xl hover:bg-primary/10 hover:text-primary transition-colors`}
                 >
                   <Plus size={16} />
                 </button>
               </div>
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Actividad</label>
-                  <input type="text" placeholder="Ej: Meditación" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none" value={newRoutine.activity} onChange={(e) => setNewRoutine({...newRoutine, activity: e.target.value})} />
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Actividad</label>
+                  <input type="text" placeholder="Ej: Meditación" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${theme.text}`} value={newRoutine.activity} onChange={(e) => setNewRoutine({...newRoutine, activity: e.target.value})} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Hora</label>
-                  <input type="time" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none" value={newRoutine.time} onChange={(e) => setNewRoutine({...newRoutine, time: e.target.value})} />
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Hora</label>
+                  <input type="time" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${theme.text}`} value={newRoutine.time} onChange={(e) => setNewRoutine({...newRoutine, time: e.target.value})} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Categoría</label>
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Categoría</label>
                   <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto no-scrollbar">
                     {routineCategories.map((cat) => (
-                      <button key={cat.id} onClick={() => setNewRoutine({...newRoutine, type: cat.id})} className={`p-2 text-[10px] font-bold uppercase rounded-xl border transition-all ${newRoutine.type === cat.id ? 'bg-primary text-white border-primary' : 'bg-white text-slate-400 border-slate-100'}`}>
+                      <button key={cat.id} onClick={() => setNewRoutine({...newRoutine, type: cat.id})} className={`p-2 text-[10px] font-bold uppercase rounded-xl border transition-all ${newRoutine.type === cat.id ? 'bg-primary text-white border-primary' : `${theme.card} ${theme.textMuted} ${theme.border}`}`}>
                         {cat.name}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button onClick={() => setIsRoutineModalOpen(false)} className="flex-1 p-4 bg-slate-100 text-slate-600 font-bold rounded-2xl">Cancelar</button>
+                  <button onClick={() => setIsRoutineModalOpen(false)} className={`flex-1 p-4 ${theme.itemBg} ${theme.textMuted} font-bold rounded-2xl`}>Cancelar</button>
                   <button onClick={() => {
                     if (!newRoutine.activity) return;
-                    SocialService.saveHabit({ ...newRoutine, completed: false, type: 'routine' });
+                    SocialService.saveHabit({ ...newRoutine, completed: false, group: 'routine' });
                     setIsRoutineModalOpen(false);
                     setNewRoutine({ time: '07:00', activity: '', type: routineCategories[0]?.id || 'rest' });
                   }} className="flex-1 p-4 bg-primary text-white font-bold rounded-2xl shadow-lg shadow-primary/20">Guardar</button>
@@ -1547,12 +1589,12 @@ export default function App() {
         {isCategoryModalOpen && (
           <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsCategoryModalOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl">
-              <h2 className="text-2xl font-bold mb-6">Nueva Categoría de Alarma</h2>
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className={`relative w-full max-w-sm ${theme.modalBg} rounded-3xl p-6 shadow-2xl transition-colors duration-300`}>
+              <h2 className={`text-2xl font-bold mb-6 ${theme.textTitle}`}>Nueva Categoría de Alarma</h2>
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Nombre</label>
-                  <input type="text" placeholder="Ej: Ejercicio" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" value={newCategory.name} onChange={(e) => setNewCategory({...newCategory, name: e.target.value})} />
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Nombre</label>
+                  <input type="text" placeholder="Ej: Ejercicio" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${theme.text}`} value={newCategory.name} onChange={(e) => setNewCategory({...newCategory, name: e.target.value})} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Color</label>
@@ -1563,7 +1605,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button onClick={() => setIsCategoryModalOpen(false)} className="flex-1 p-4 bg-slate-100 text-slate-600 font-bold rounded-2xl">Cancelar</button>
+                  <button onClick={() => setIsCategoryModalOpen(false)} className={`flex-1 p-4 ${theme.itemBg} ${theme.textMuted} font-bold rounded-2xl`}>Cancelar</button>
                   <button onClick={() => {
                     if (!newCategory.name) return;
                     setCategories([...categories, { id: Date.now().toString(), name: newCategory.name, icon: 'zap', color: newCategory.color }]);
@@ -1582,12 +1624,12 @@ export default function App() {
         {isTaskCategoryModalOpen && (
           <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsTaskCategoryModalOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl">
-              <h2 className="text-2xl font-bold mb-6">Nueva Categoría de Tarea</h2>
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className={`relative w-full max-w-sm ${theme.modalBg} rounded-3xl p-6 shadow-2xl transition-colors duration-300`}>
+              <h2 className={`text-2xl font-bold mb-6 ${theme.textTitle}`}>Nueva Categoría de Tarea</h2>
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Nombre</label>
-                  <input type="text" placeholder="Ej: Trabajo" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" value={newCategory.name} onChange={(e) => setNewCategory({...newCategory, name: e.target.value})} />
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Nombre</label>
+                  <input type="text" placeholder="Ej: Trabajo" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${theme.text}`} value={newCategory.name} onChange={(e) => setNewCategory({...newCategory, name: e.target.value})} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Color</label>
@@ -1617,12 +1659,12 @@ export default function App() {
         {isEventCategoryModalOpen && (
           <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsEventCategoryModalOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl">
-              <h2 className="text-2xl font-bold mb-6">Nueva Categoría de Evento</h2>
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className={`relative w-full max-w-sm ${theme.modalBg} rounded-3xl p-6 shadow-2xl transition-colors duration-300`}>
+              <h2 className={`text-2xl font-bold mb-6 ${theme.textTitle}`}>Nueva Categoría de Evento</h2>
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Nombre</label>
-                  <input type="text" placeholder="Ej: Reunión" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" value={newCategory.name} onChange={(e) => setNewCategory({...newCategory, name: e.target.value})} />
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Nombre</label>
+                  <input type="text" placeholder="Ej: Reunión" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${theme.text}`} value={newCategory.name} onChange={(e) => setNewCategory({...newCategory, name: e.target.value})} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Color</label>
@@ -1652,12 +1694,12 @@ export default function App() {
         {isLocationCategoryModalOpen && (
           <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsLocationCategoryModalOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl">
-              <h2 className="text-2xl font-bold mb-6">Nueva Categoría de Ubicación</h2>
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className={`relative w-full max-w-sm ${theme.modalBg} rounded-3xl p-6 shadow-2xl transition-colors duration-300`}>
+              <h2 className={`text-2xl font-bold mb-6 ${theme.textTitle}`}>Nueva Categoría de Ubicación</h2>
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Nombre</label>
-                  <input type="text" placeholder="Ej: Trabajo" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" value={newCategory.name} onChange={(e) => setNewCategory({...newCategory, name: e.target.value})} />
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Nombre</label>
+                  <input type="text" placeholder="Ej: Trabajo" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${theme.text}`} value={newCategory.name} onChange={(e) => setNewCategory({...newCategory, name: e.target.value})} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Color</label>
@@ -1687,12 +1729,12 @@ export default function App() {
         {isRoutineCategoryModalOpen && (
           <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsRoutineCategoryModalOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl">
-              <h2 className="text-2xl font-bold mb-6">Nueva Categoría de Rutina</h2>
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className={`relative w-full max-w-sm ${theme.modalBg} rounded-3xl p-6 shadow-2xl transition-colors duration-300`}>
+              <h2 className={`text-2xl font-bold mb-6 ${theme.textTitle}`}>Nueva Categoría de Rutina</h2>
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Nombre</label>
-                  <input type="text" placeholder="Ej: Ejercicio" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" value={newCategory.name} onChange={(e) => setNewCategory({...newCategory, name: e.target.value})} />
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Nombre</label>
+                  <input type="text" placeholder="Ej: Ejercicio" className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${theme.text}`} value={newCategory.name} onChange={(e) => setNewCategory({...newCategory, name: e.target.value})} />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Color</label>
@@ -1719,12 +1761,12 @@ export default function App() {
 
       {/* Main AI Interaction Button - Refined Glass Style */}
       <div className="fixed right-4 top-1/2 -translate-y-1/2 z-[100] flex flex-col items-center">
-        <motion.button
-          whileHover={{ scale: 1.1, x: -4 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setIsAiConsultationOpen(true)}
-          className="w-14 h-14 rounded-[1.8rem] bg-white/50 backdrop-blur-xl border border-white/80 text-sunset-wine shadow-[0_8px_32px_rgba(0,0,0,0.06)] flex items-center justify-center group relative"
-        >
+          <motion.button
+            whileHover={{ scale: 1.1, x: -4 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setIsAiConsultationOpen(true)}
+            className={`w-14 h-14 rounded-[1.8rem] ${preferences.darkMode ? 'bg-slate-900/50' : 'bg-white/50'} backdrop-blur-xl border ${theme.border} text-sunset-wine shadow-[0_8px_32px_rgba(0,0,0,0.06)] flex items-center justify-center group relative`}
+          >
           <Sparkles size={26} className="opacity-70 transition-transform group-hover:rotate-12 group-hover:opacity-100" />
           
           {/* Subtle slow pulse animation */}
@@ -1738,7 +1780,7 @@ export default function App() {
           />
           
           <div className="absolute right-full mr-4 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/50 shadow-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none translate-x-2 group-hover:translate-x-0">
-            <span className="text-[9px] font-black text-sunset-wine uppercase tracking-[0.2em]">Consultar IA</span>
+            <span className={`text-[9px] font-black ${preferences.darkMode ? 'text-slate-200' : 'text-sunset-wine'} uppercase tracking-[0.2em]`}>Consultar IA</span>
           </div>
         </motion.button>
       </div>
@@ -1755,13 +1797,13 @@ export default function App() {
               className="absolute inset-0 bg-slate-900/20 backdrop-blur-[2px]"
             />
             <motion.div 
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden"
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={`relative w-full max-w-sm ${theme.modalBg} ${theme.text} rounded-3xl p-6 shadow-2xl transition-colors duration-300`}
             >
-              <div className="p-6 border-b border-slate-50 flex justify-between items-center">
-                <h2 className="text-xl font-bold">Notificaciones</h2>
+              <div className={`p-6 border-b ${theme.border} flex justify-between items-center`}>
+                <h2 className={`text-xl font-bold ${theme.textTitle}`}>Notificaciones</h2>
                 <div className="flex gap-4">
                   <button 
                     onClick={() => {
@@ -1783,25 +1825,25 @@ export default function App() {
               <div className="max-h-[400px] overflow-y-auto no-scrollbar">
                 {notifications.length > 0 ? (
                   notifications.map((n) => (
-                    <div key={n.id} className={`p-4 border-b border-slate-50 flex gap-3 transition-colors ${!n.read ? 'bg-primary/5' : ''}`}>
+                    <div key={n.id} className={`p-4 border-b ${theme.border} flex gap-3 transition-colors ${!n.read ? 'bg-primary/10' : ''}`}>
                       <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${!n.read ? 'bg-primary' : 'bg-transparent'}`} />
                       <div className="flex-1">
-                        <p className="font-bold text-sm text-slate-800">{n.title}</p>
-                        <p className="text-sm text-slate-500 mt-0.5">{n.message}</p>
-                        <p className="text-[10px] text-slate-400 mt-2 font-medium uppercase">{n.time}</p>
+                        <p className={`font-bold text-sm ${theme.textTitle}`}>{n.title}</p>
+                        <p className={`text-sm ${theme.textMuted} mt-0.5`}>{n.message}</p>
+                        <p className={`text-[10px] ${theme.textMuted} mt-2 font-medium uppercase opacity-50`}>{n.time}</p>
                       </div>
                     </div>
                   ))
                 ) : (
                   <div className="p-12 text-center">
-                    <Bell size={40} className="mx-auto text-slate-200 mb-4" />
-                    <p className="text-slate-400 font-medium">No tienes notificaciones</p>
+                    <Bell size={40} className={`mx-auto ${theme.textMuted} mb-4 opacity-20`} />
+                    <p className={`${theme.textMuted} font-medium`}>No tienes notificaciones</p>
                   </div>
                 )}
               </div>
               <button 
                 onClick={() => setIsNotificationsOpen(false)}
-                className="w-full p-4 text-center text-sm font-bold text-slate-500 bg-slate-50 hover:bg-slate-100 transition-colors"
+                className={`w-full p-4 text-center text-sm font-bold ${theme.textMuted} ${theme.itemBg} hover:opacity-80 transition-opacity`}
               >
                 Cerrar
               </button>
@@ -1825,11 +1867,11 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white w-full max-w-md rounded-[3rem] overflow-hidden relative z-10 shadow-2xl"
+              className={`${theme.modalBg} w-full max-w-md rounded-[3rem] overflow-hidden relative z-10 shadow-2xl transition-colors duration-300`}
             >
               <div className="bg-sunset-pink p-12 text-white flex flex-col items-center gap-4 text-center">
                 <div className="relative">
-                  <div className="w-32 h-32 rounded-[2.5rem] bg-white p-1.5 shadow-2xl relative overflow-hidden">
+                  <div className={`w-32 h-32 rounded-[2.5rem] ${theme.itemBg} p-1.5 shadow-2xl relative overflow-hidden`}>
                     <img 
                       src={userProfile.photo} 
                       alt="Profile" 
@@ -1842,25 +1884,25 @@ export default function App() {
                   </label>
                 </div>
                 <div className="space-y-1">
-                  <h2 className="text-3xl font-black tracking-tight">{userProfile.name}</h2>
+                  <h2 className="text-3xl font-black tracking-tight tracking-tight">{userProfile.name}</h2>
                   <p className="text-white/60 font-medium">{userProfile.email}</p>
                 </div>
               </div>
 
               <div className="p-8 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                   <div className="bg-slate-50 p-6 rounded-[2rem] flex flex-col items-center gap-2">
+                   <div className={`${theme.itemBg} p-6 rounded-[2rem] flex flex-col items-center gap-2 transition-colors`}>
                       <Zap size={24} className="text-sunset-orange" fill="currentColor" />
                       <div className="text-center">
-                         <p className="text-xl font-black text-slate-800">{streak}</p>
-                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Racha</p>
+                         <p className={`text-xl font-black ${theme.textTitle}`}>{streak}</p>
+                         <p className={`text-[9px] font-black uppercase tracking-widest ${theme.textMuted}`}>Racha</p>
                       </div>
                    </div>
-                   <div className="bg-slate-50 p-6 rounded-[2rem] flex flex-col items-center gap-2">
+                   <div className={`${theme.itemBg} p-6 rounded-[2rem] flex flex-col items-center gap-2 transition-colors`}>
                       <Clock size={24} className="text-deep-teal" fill="currentColor" />
                       <div className="text-center">
-                         <p className="text-xl font-black text-slate-800">{balance}%</p>
-                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Esencia</p>
+                         <p className={`text-xl font-black ${theme.textTitle}`}>{balance}%</p>
+                         <p className={`text-[9px] font-black uppercase tracking-widest ${theme.textMuted}`}>Esencia</p>
                       </div>
                    </div>
                 </div>
@@ -1869,7 +1911,7 @@ export default function App() {
                   <button className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] hover:bg-black transition-colors">Configuración</button>
                   <button 
                     onClick={() => signOut(auth)}
-                    className="w-full bg-slate-100 text-slate-400 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] hover:bg-slate-200 transition-colors"
+                    className={`w-full ${theme.itemBg} ${theme.textMuted} py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] hover:opacity-80 transition-all`}
                    >
                     Cerrar Sesión
                   </button>
@@ -1902,15 +1944,15 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl"
+              className={`relative w-full max-w-sm ${theme.modalBg} rounded-3xl p-6 shadow-2xl`}
             >
-              <h2 className="text-2xl font-bold mb-6">Preferencias</h2>
+              <h2 className={`text-2xl font-bold mb-6 ${theme.textTitle}`}>Preferencias</h2>
               <div className="space-y-6">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-bold text-slate-800">Modo Oscuro</p>
-                      <p className="text-xs text-slate-400">{preferences.darkMode ? 'Activado' : 'Desactivado'}</p>
+                      <p className={`font-bold ${theme.textTitle}`}>Modo Oscuro</p>
+                      <p className={`text-xs ${theme.textMuted}`}>{preferences.darkMode ? 'Activado' : 'Desactivado'}</p>
                     </div>
                     <button 
                       onClick={() => setPreferences({...preferences, darkMode: !preferences.darkMode})}
@@ -1924,8 +1966,8 @@ export default function App() {
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-bold text-slate-800">Notificaciones Push</p>
-                      <p className="text-xs text-slate-400">{preferences.pushNotifications ? 'Activado' : 'Desactivado'}</p>
+                      <p className={`font-bold ${theme.textTitle}`}>Notificaciones Push</p>
+                      <p className={`text-xs ${theme.textMuted}`}>{preferences.pushNotifications ? 'Activado' : 'Desactivado'}</p>
                     </div>
                     <button 
                       onClick={() => setPreferences({...preferences, pushNotifications: !preferences.pushNotifications})}
@@ -1939,13 +1981,13 @@ export default function App() {
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-bold text-slate-800">Sonido de Alarma</p>
-                      <p className="text-xs text-slate-400">{preferences.alarmSound}</p>
+                      <p className={`font-bold ${theme.textTitle}`}>Sonido de Alarma</p>
+                      <p className={`text-xs ${theme.textMuted}`}>{preferences.alarmSound}</p>
                     </div>
                     <select 
                       value={preferences.alarmSound}
                       onChange={(e) => setPreferences({...preferences, alarmSound: e.target.value})}
-                      className="text-xs font-bold text-primary bg-transparent focus:outline-none"
+                      className={`text-xs font-bold text-primary bg-transparent focus:outline-none ${preferences.darkMode ? 'bg-slate-800' : ''}`}
                     >
                       <option value="Zen">Zen</option>
                       <option value="Energía">Energía</option>
@@ -1956,7 +1998,7 @@ export default function App() {
                 </div>
                 <button 
                   onClick={() => setIsPreferencesOpen(false)}
-                  className="w-full p-4 bg-slate-100 text-slate-600 font-bold rounded-2xl"
+                  className={`w-full p-4 ${theme.itemBg} ${theme.textMuted} font-bold rounded-2xl`}
                 >
                   Cerrar
                 </button>
@@ -1981,7 +2023,7 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-sm bg-white rounded-[2.5rem] p-8 shadow-2xl overflow-hidden"
+              className={`relative w-full max-w-sm ${theme.modalBg} rounded-[2.5rem] p-8 shadow-2xl overflow-hidden`}
             >
               <div className="absolute top-0 left-0 w-full h-2 sunset-gradient" />
               
@@ -1991,19 +2033,19 @@ export default function App() {
                 </div>
                 
                 <div className="space-y-2">
-                  <h2 className="text-3xl font-black text-sunset-wine tracking-tight uppercase">Kairos</h2>
+                  <h2 className={`text-3xl font-black ${theme.textTitle} tracking-tight uppercase`}>Kairos</h2>
                   <p className="text-xs font-black text-sunset-orange tracking-[0.2em] uppercase">Tiempo con sentido</p>
                 </div>
                 
-                <div className="space-y-4 text-slate-600 leading-relaxed">
+                <div className={`space-y-4 ${theme.textTitle} leading-relaxed`}>
                   <p className="text-sm font-medium">
                     Kairos no es solo una agenda, es una filosofía de vida. En la antigua Grecia, "Kairos" representaba el tiempo oportuno, el momento perfecto donde las cosas suceden.
                   </p>
                   <p className="text-sm">
                     Nuestra misión es ayudarte a encontrar ese equilibrio entre productividad y bienestar. Con la ayuda de tu guardián del tiempo y nuestra IA, buscamos que cada minuto cuente no por su cantidad, sino por su propósito.
                   </p>
-                  <div className="pt-4 border-t border-slate-100 w-full">
-                    <p className="text-[10px] font-bold text-slate-400 tracking-widest uppercase mb-1">Creado para ti por</p>
+                  <div className={`pt-4 border-t ${theme.border} w-full`}>
+                    <p className={`text-[10px] font-bold ${theme.textMuted} tracking-widest uppercase mb-1`}>Creado para ti por</p>
                     <p className="text-sm font-black text-sunset-wine">Equipo Kairos</p>
                   </div>
                 </div>
@@ -2039,7 +2081,7 @@ export default function App() {
               initial={{ scale: 0.9, opacity: 0, y: 40 }} 
               animate={{ scale: 1, opacity: 1, y: 0 }} 
               exit={{ scale: 0.9, opacity: 0, y: 40 }}
-              className="relative w-full max-w-sm glass-card pt-16 pb-10 px-8 bg-white shadow-2xl border-none space-y-8 rounded-[4rem] overflow-visible"
+              className={`relative w-full max-w-sm glass-card pt-16 pb-10 px-8 ${theme.modalBg} shadow-2xl border-none space-y-8 rounded-[4rem] overflow-visible`}
             >
               {/* Mascot Bubble - Floating prominently at top */}
               <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-20">
@@ -2048,7 +2090,7 @@ export default function App() {
                   transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                   className="w-32 h-32 sunset-gradient p-1.5 rounded-[3.5rem] shadow-2xl shadow-sunset-orange/20"
                 >
-                  <div className="w-full h-full bg-white rounded-[3.2rem] flex items-center justify-center overflow-hidden">
+                  <div className={`w-full h-full ${preferences.darkMode ? 'bg-slate-900' : 'bg-white'} rounded-[3.2rem] flex items-center justify-center overflow-hidden`}>
                     <div className="scale-[0.55]">
                       <TimeMascot streak={streak} balance={balance} />
                     </div>
@@ -2057,13 +2099,13 @@ export default function App() {
               </div>
 
               <div className="text-center space-y-1 pt-4">
-                <h3 className="text-2xl font-black text-sunset-wine tracking-tight">
+                <h3 className={`text-2xl font-black ${theme.textTitle} tracking-tight`}>
                   Consulta {mascotName}
                 </h3>
-                <p className="text-[10px] font-black text-sunset-wine/20 uppercase tracking-[0.2em]">Sintonizando con tu tiempo</p>
+                <p className={`text-[10px] font-black ${theme.textMuted} uppercase tracking-[0.2em] opacity-50`}>Sintonizando con tu tiempo</p>
               </div>
 
-              <div className="bg-rose-50/50 rounded-[3rem] p-8 min-h-[160px] flex items-center justify-center text-center relative overflow-hidden transition-all duration-500">
+              <div className={`${theme.cardSecondary} rounded-[3rem] p-8 min-h-[160px] flex items-center justify-center text-center relative overflow-hidden transition-all duration-500`}>
                 {/* Decorative background element for the response box */}
                 <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-sunset-orange/5 rounded-full blur-3xl" />
                 <AnimatePresence mode="wait">
@@ -2105,7 +2147,7 @@ export default function App() {
                           <input 
                             type="text"
                             placeholder="Pregúntame lo que quieras..."
-                            className="w-full bg-white border-2 border-rose-100 p-5 rounded-[2rem] text-sm font-black text-sunset-wine placeholder:text-sunset-wine/10 focus:ring-4 focus:ring-sunset-orange/5 focus:border-sunset-orange/20 transition-all outline-none"
+                            className={`w-full ${theme.inputBg} border-2 ${theme.border} p-5 rounded-[2rem] text-sm font-black ${theme.textTitle} placeholder:${theme.textMuted} focus:ring-4 focus:ring-sunset-orange/5 focus:border-sunset-orange/20 transition-all outline-none`}
                             value={userQuestion}
                             onChange={(e) => setUserQuestion(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && consultAI('open')}
@@ -2219,10 +2261,10 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-sm bg-white rounded-3xl p-8 shadow-2xl"
+              className={`relative w-full max-w-sm ${theme.modalBg} ${theme.text} rounded-3xl p-8 shadow-2xl`}
             >
               <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-black text-deep-teal tracking-tighter">Configurar Hábitos</h2>
+                <h2 className={`text-2xl font-black ${theme.textTitle} tracking-tighter`}>Configurar Hábitos</h2>
                 <button onClick={() => setIsHabitConfigOpen(false)} className="text-slate-400">
                   <X size={24} />
                 </button>
@@ -2249,7 +2291,7 @@ export default function App() {
                       className={`w-full p-4 rounded-2xl flex items-center justify-between border-2 transition-all ${
                         isActive 
                           ? 'bg-deep-teal/5 border-deep-teal text-deep-teal' 
-                          : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+                          : `${theme.card} ${theme.border} ${theme.textMuted} hover:opacity-80`
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -2294,17 +2336,17 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl"
+              className={`relative w-full max-w-sm ${theme.modalBg} ${theme.text} rounded-3xl p-6 shadow-2xl`}
             >
-              <h2 className="text-2xl font-bold mb-6">Nuevo Recordatorio</h2>
+              <h2 className={`text-2xl font-bold mb-6 ${theme.textTitle}`}>Nuevo Recordatorio</h2>
               
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Actividad</label>
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Actividad</label>
                   <input 
                     type="text" 
                     placeholder="Ej: Beber 2 vasos de agua"
-                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-wellness/20 transition-all"
+                    className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-wellness/20 transition-all ${theme.text}`}
                     value={newWellness.label}
                     onChange={(e) => setNewWellness({...newWellness, label: e.target.value})}
                   />
@@ -2325,7 +2367,7 @@ export default function App() {
                         className={`flex items-center gap-2 p-3 rounded-xl border transition-all ${
                           newWellness.type === t.id 
                             ? 'bg-wellness text-white border-wellness shadow-md' 
-                            : 'bg-white text-slate-500 border-slate-100'
+                            : `${theme.itemBg} ${theme.textMuted} ${theme.border}`
                         }`}
                       >
                         {t.icon}
@@ -2336,10 +2378,10 @@ export default function App() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Hora</label>
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Hora</label>
                   <input 
                     type="time" 
-                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-wellness/20 transition-all"
+                    className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-wellness/20 transition-all ${theme.text}`}
                     value={newWellness.time}
                     onChange={(e) => setNewWellness({...newWellness, time: e.target.value})}
                   />
@@ -2348,14 +2390,14 @@ export default function App() {
                 <div className="flex gap-3 pt-4">
                   <button 
                     onClick={() => setIsWellnessModalOpen(false)}
-                    className="flex-1 p-4 bg-slate-100 text-slate-600 font-bold rounded-2xl"
+                    className={`flex-1 p-4 ${theme.itemBg} ${theme.textMuted} font-bold rounded-2xl`}
                   >
                     Cancelar
                   </button>
                   <button 
                     onClick={() => {
                       if (!newWellness.label) return;
-                      SocialService.saveHabit({ ...newWellness, completed: false, type: 'wellness' });
+                      SocialService.saveHabit({ ...newWellness, completed: false, group: 'wellness' });
                       setIsWellnessModalOpen(false);
                       setNewWellness({ type: 'water', label: '', time: '10:00' });
                     }}
@@ -2385,27 +2427,27 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl"
+              className={`relative w-full max-w-sm ${theme.modalBg} ${theme.text} rounded-3xl p-6 shadow-2xl`}
             >
-              <h2 className="text-2xl font-bold mb-6">Nueva Alarma</h2>
+              <h2 className={`text-2xl font-bold mb-6 ${theme.textTitle}`}>Nueva Alarma</h2>
               
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Nombre</label>
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Nombre</label>
                   <input 
                     type="text" 
                     placeholder="Ej: Tomar Vitamina"
-                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                    className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${theme.text}`}
                     value={newAlarm.title}
                     onChange={(e) => setNewAlarm({...newAlarm, title: e.target.value})}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Hora</label>
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Hora</label>
                   <input 
                     type="time" 
-                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                    className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${theme.text}`}
                     value={newAlarm.time}
                     onChange={(e) => setNewAlarm({...newAlarm, time: e.target.value})}
                   />
@@ -2413,7 +2455,7 @@ export default function App() {
 
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Categoría</label>
+                    <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-widest`}>Categoría</label>
                     <button 
                       onClick={() => setIsCategoryModalOpen(true)}
                       className="text-xs font-bold text-primary flex items-center gap-1"
@@ -2429,7 +2471,7 @@ export default function App() {
                         className={`p-2 text-[10px] font-bold uppercase rounded-xl border transition-all ${
                           newAlarm.category === cat.id 
                             ? 'bg-primary text-white border-primary' 
-                            : 'bg-white text-slate-400 border-slate-100'
+                            : `${theme.itemBg} ${theme.textMuted} ${theme.border}`
                         }`}
                       >
                         {cat.name}
@@ -2471,6 +2513,55 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Mascot Rename Modal */}
+      <AnimatePresence>
+        {isMascotRenameOpen && (
+          <div className="fixed inset-0 z-[180] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMascotRenameOpen(false)}
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className={`relative w-full max-w-sm p-10 ${theme.modalBg} ${theme.text} shadow-2xl space-y-8 rounded-[4rem] border ${theme.border}`}
+            >
+              <div className="text-center space-y-4 pt-4">
+                <div className="w-20 h-20 sunset-gradient rounded-[2.5rem] mx-auto flex items-center justify-center shadow-xl shadow-sunset-orange/20 mb-4">
+                  <div className="scale-50">
+                    <TimeMascot streak={streak} balance={balance} />
+                  </div>
+                </div>
+                <h3 className={`text-3xl font-black ${theme.textTitle} tracking-tight leading-none italic`}>Vínculo Vital</h3>
+                <p className={`text-[10px] font-black ${theme.textMuted} uppercase tracking-[0.3em]`}>Nombra a tu guardián</p>
+              </div>
+
+              <div className="space-y-4">
+                <input 
+                  type="text"
+                  placeholder="Nombre de tu mascota..."
+                  className={`w-full p-6 ${theme.inputBg} border-2 ${theme.border} rounded-[2.5rem] font-black ${theme.textTitle} placeholder:${theme.textMuted} focus:ring-4 focus:ring-sunset-orange/10 transition-all outline-none text-center`}
+                  value={mascotName}
+                  onChange={(e) => setMascotName(e.target.value)}
+                  autoFocus
+                />
+                
+                <button 
+                  onClick={() => setIsMascotRenameOpen(false)}
+                  className="w-full py-6 sunset-gradient text-white font-black rounded-[2.5rem] shadow-xl shadow-sunset-orange/20 transition-transform active:scale-95 uppercase tracking-widest text-xs"
+                >
+                  Confirmar Nombre
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <main className="relative z-10">
         <AnimatePresence mode="wait">
           <motion.div
@@ -2487,7 +2578,7 @@ export default function App() {
 
       {/* Integrated Bottom Navigation - Dynamic and Organic */}
       <footer className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-4">
-        <nav className="bg-deep-teal/90 backdrop-blur-2xl p-2.5 rounded-[3.5rem] flex items-center justify-around gap-1 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.4)] border border-white/5 relative overflow-hidden">
+        <nav className={`${preferences.darkMode ? 'bg-slate-900/90' : 'bg-deep-teal/90'} backdrop-blur-2xl p-2.5 rounded-[3.5rem] flex items-center justify-around gap-1 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.4)] border border-white/5 relative overflow-hidden`}>
           {/* Subtle glow behind the whole nav */}
           <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-32 h-32 bg-mint/5 blur-3xl pointer-events-none" />
           
@@ -2507,7 +2598,7 @@ export default function App() {
                 onClick={() => setActiveTab(item.id)}
                 className={`relative flex items-center justify-center gap-2 h-14 rounded-full transition-all duration-500 overflow-hidden ${
                   isActive 
-                    ? 'bg-white text-deep-teal px-6 flex-grow shadow-lg z-10' 
+                    ? `${theme.card} ${preferences.darkMode ? 'text-white' : 'text-deep-teal'} px-6 flex-grow shadow-lg z-10` 
                     : 'text-white/30 hover:text-white/60 px-4'
                 }`}
               >
@@ -2545,9 +2636,18 @@ export default function App() {
   );
 }
 
-function AuthScreen() {
+function AuthScreen({ darkMode }: { darkMode?: boolean }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const theme = {
+    bg: darkMode ? 'bg-slate-950' : 'bg-gradient-to-br from-amber-50 via-rose-50 to-sky-100',
+    card: darkMode ? 'bg-slate-900/60' : 'bg-white/40',
+    text: darkMode ? 'text-slate-100' : 'text-slate-900',
+    textTitle: darkMode ? 'text-white' : 'text-deep-teal',
+    textMuted: darkMode ? 'text-slate-400' : 'text-deep-teal/40',
+    border: darkMode ? 'border-white/10' : 'border-white/40'
+  };
 
   const handleGoogleLogin = async () => {
     setError('');
@@ -2587,7 +2687,7 @@ function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-rose-50 to-sky-100 flex items-center justify-center p-6 relative overflow-hidden font-sans">
+    <div className={`min-h-screen ${theme.bg} flex items-center justify-center p-6 relative overflow-hidden font-sans transition-colors duration-500`}>
       {/* Dynamic Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div 
@@ -2597,7 +2697,7 @@ function AuthScreen() {
             x: [0, 50, 0],
           }}
           transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-sunset-orange/10 blur-[100px] rounded-full"
+          className={`absolute -top-40 -left-40 w-[600px] h-[600px] ${darkMode ? 'bg-primary/5' : 'bg-sunset-orange/10'} blur-[100px] rounded-full`}
         />
         <motion.div 
           animate={{ 
@@ -2606,14 +2706,14 @@ function AuthScreen() {
             x: [0, -50, 0],
           }}
           transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -bottom-40 -right-40 w-[500px] h-[500px] bg-mint/10 blur-[100px] rounded-full"
+          className={`absolute -bottom-40 -right-40 w-[500px] h-[500px] ${darkMode ? 'bg-mint/5' : 'bg-mint/10'} blur-[100px] rounded-full`}
         />
       </div>
       
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md bg-white/40 backdrop-blur-3xl rounded-[4rem] p-12 shadow-[0_32px_64px_rgba(0,0,0,0.08)] relative z-10 text-center flex flex-col items-center gap-12 border border-white/40"
+        className={`w-full max-w-md ${theme.card} backdrop-blur-3xl rounded-[4rem] p-12 shadow-[0_32px_64px_rgba(0,0,0,0.08)] relative z-10 text-center flex flex-col items-center gap-12 border ${theme.border}`}
       >
         <div className="space-y-6">
           <motion.div 
@@ -2633,8 +2733,8 @@ function AuthScreen() {
             />
           </motion.div>
           <div className="space-y-2">
-            <h1 className="text-5xl font-black tracking-tighter text-deep-teal italic">Kairos</h1>
-            <p className="text-deep-teal/40 font-bold text-lg tracking-tight">Tiempo con sentido.</p>
+            <h1 className={`text-5xl font-black tracking-tighter ${theme.textTitle} italic`}>Kairos</h1>
+            <p className={`${theme.textMuted} font-bold text-lg tracking-tight`}>Tiempo con sentido.</p>
           </div>
         </div>
 
@@ -2643,14 +2743,14 @@ function AuthScreen() {
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="p-4 bg-rose-50 border border-rose-100 rounded-2xl space-y-3"
+              className={`p-4 ${darkMode ? 'bg-rose-950/20' : 'bg-rose-50'} border border-rose-100 rounded-2xl space-y-3`}
             >
               <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest leading-relaxed">{error}</p>
               
               {error.includes('Dominio no autorizado') && (
                 <button 
                   onClick={() => navigator.clipboard.writeText(window.location.hostname)}
-                  className="flex items-center gap-2 text-[9px] font-bold text-rose-600 hover:text-rose-700 transition-colors bg-white/50 px-3 py-1.5 rounded-lg border border-rose-100"
+                  className={`flex items-center gap-2 text-[9px] font-bold text-rose-600 hover:text-rose-700 transition-colors ${darkMode ? 'bg-slate-800' : 'bg-white/50'} px-3 py-1.5 rounded-lg border border-rose-100`}
                 >
                   <Copy size={12} />
                   COPIAR DOMINIO
@@ -2660,13 +2760,13 @@ function AuthScreen() {
           )}
 
           {window.self !== window.top && (
-            <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex flex-col items-center gap-2">
+            <div className={`p-4 ${darkMode ? 'bg-amber-950/20' : 'bg-amber-50'} border border-amber-100 rounded-2xl flex flex-col items-center gap-2`}>
               <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">⚠️ Ejecución en un iframe detectada</p>
               <a 
                 href={window.location.href} 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-[10px] font-bold text-amber-700 bg-white/50 px-4 py-2 rounded-xl border border-amber-100 hover:bg-white transition-all shadow-sm"
+                className={`flex items-center gap-2 text-[10px] font-bold text-amber-700 ${darkMode ? 'bg-slate-800' : 'bg-white/50'} px-4 py-2 rounded-xl border border-amber-100 hover:opacity-80 transition-all shadow-sm`}
               >
                 <ExternalLink size={14} />
                 ABRIR EN PESTAÑA NUEVA
@@ -2679,9 +2779,9 @@ function AuthScreen() {
             whileTap={{ scale: 0.98 }}
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="w-full py-6 bg-white shadow-xl shadow-black/[0.03] rounded-[2.5rem] flex items-center justify-center gap-4 group transition-all border border-slate-100 disabled:opacity-50"
+            className={`w-full py-6 ${darkMode ? 'bg-slate-900 border-white/10' : 'bg-white border-slate-100'} shadow-xl shadow-black/[0.03] rounded-[2.5rem] flex items-center justify-center gap-4 group transition-all border disabled:opacity-50`}
           >
-            <div className="w-8 h-8 bg-slate-50 rounded-full flex items-center justify-center">
+            <div className={`w-8 h-8 ${darkMode ? 'bg-slate-800' : 'bg-slate-50'} rounded-full flex items-center justify-center`}>
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -2689,15 +2789,15 @@ function AuthScreen() {
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
             </div>
-            <span className="text-base font-black text-deep-teal uppercase tracking-widest">
+            <span className={`text-base font-black ${theme.textTitle} uppercase tracking-widest`}>
               {loading ? 'Sincronizando...' : 'Entrar con Google'}
             </span>
-            <ArrowRight size={20} className="text-deep-teal/20 group-hover:text-deep-teal group-hover:translate-x-1 transition-all" />
+            <ArrowRight size={20} className={`${darkMode ? 'text-white/20' : 'text-deep-teal/20'} group-hover:text-current group-hover:translate-x-1 transition-all`} />
           </motion.button>
         </div>
 
-        <div className="pt-6 border-t border-deep-teal/5 w-full">
-          <p className="text-[10px] text-deep-teal/20 font-black uppercase tracking-[0.4em]">Experiencia Vital</p>
+        <div className={`pt-6 border-t ${darkMode ? 'border-white/5' : 'border-deep-teal/5'} w-full`}>
+          <p className={`text-[10px] ${darkMode ? 'text-white/20' : 'text-deep-teal/20'} font-black uppercase tracking-[0.4em]`}>Experiencia Vital</p>
         </div>
       </motion.div>
     </div>
