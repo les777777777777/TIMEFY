@@ -41,7 +41,9 @@ import {
   FileText,
   TrendingUp,
   Sparkles,
-  X
+  X,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -202,10 +204,9 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [wellness, setWellness] = useState<WellnessReminder[]>([]);
   const [routine, setRoutine] = useState<RoutineItem[]>([]);
-  const [events, setEvents] = useState<CalendarEvent[]>(() => {
-    const saved = localStorage.getItem('kairos_events');
-    return saved ? JSON.parse(saved) : MOCK_EVENTS;
-  });
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [alarms, setAlarms] = useState<Alarm[]>([]);
+  const [achievements, setAchievements] = useState<any[]>([]);
 
   // Calculate Balance - Derived from real-time state
   const balance = useMemo(() => {
@@ -222,6 +223,9 @@ export default function App() {
     let unsubscribeTasks: () => void;
     let unsubscribeHabits: () => void;
     let unsubscribeProfile: () => void;
+    let unsubscribeAlarms: () => void;
+    let unsubscribeEvents: () => void;
+    let unsubscribeAchievements: () => void;
 
     if (isAuthenticated && user) {
       // Initialize profile if it doesn't exist
@@ -250,12 +254,30 @@ export default function App() {
         if (wellnessItems.length > 0) setWellness(wellnessItems as WellnessReminder[]);
         if (routineItems.length > 0) setRoutine(routineItems as RoutineItem[]);
       });
+
+      // Subscribe to Alarms
+      unsubscribeAlarms = SocialService.subscribeToAlarms((syncedAlarms) => {
+        setAlarms(syncedAlarms as Alarm[]);
+      });
+
+      // Subscribe to Events
+      unsubscribeEvents = SocialService.subscribeToEvents((syncedEvents) => {
+        setEvents(syncedEvents as CalendarEvent[]);
+      });
+
+      // Subscribe to Achievements
+      unsubscribeAchievements = SocialService.subscribeToAchievements((syncedAchievements) => {
+        setAchievements(syncedAchievements);
+      });
     }
 
     return () => {
       if (unsubscribeTasks) unsubscribeTasks();
       if (unsubscribeHabits) unsubscribeHabits();
       if (unsubscribeProfile) unsubscribeProfile();
+      if (unsubscribeAlarms) unsubscribeAlarms();
+      if (unsubscribeEvents) unsubscribeEvents();
+      if (unsubscribeAchievements) unsubscribeAchievements();
     };
   }, [isAuthenticated, user]);
 
@@ -284,6 +306,16 @@ export default function App() {
       } else {
         setUser(null);
         setIsAuthenticated(false);
+        // Reiniciar estados para un inicio limpio
+        setTasks([]);
+        setWellness([]);
+        setRoutine([]);
+        setEvents([]);
+        setAlarms([]);
+        setAchievements([]);
+        setStreak(0);
+        setMascotName('Kairo');
+        setNotifications([]);
       }
       setIsLoadingAuth(false);
     }, (error) => {
@@ -297,8 +329,29 @@ export default function App() {
   useEffect(() => {
     if (isAuthenticated && user) {
       SocialService.syncProfile({ streak, balance, mascotName });
+      
+      // Check for achievements
+      ACHIEVEMENTS_LIST.forEach(ach => {
+        if (!achievements.some(a => a.title === ach.title)) {
+           if (ach.condition(tasks, streak, balance, wellness)) {
+             SocialService.unlockAchievement({
+               title: ach.title,
+               description: ach.description,
+               icon: ach.icon
+             });
+             // Add notification
+             setNotifications(prev => [{
+               id: Date.now().toString(),
+               title: '¡Logro Desbloqueado!',
+               message: `Has ganado el logro: ${ach.title}`,
+               time: 'Justo ahora',
+               read: false
+             }, ...prev]);
+           }
+        }
+      });
     }
-  }, [streak, balance, mascotName, isAuthenticated, user]);
+  }, [streak, balance, mascotName, isAuthenticated, user, tasks, wellness, routine, achievements]);
 
   // Update time every minute for dynamic background
   useEffect(() => {
@@ -319,7 +372,10 @@ export default function App() {
 
   // Toggle Alarm
   const toggleAlarm = (id: string) => {
-    setAlarms(alarms.map(alarm => alarm.id === id ? { ...alarm, enabled: !alarm.enabled } : alarm));
+    const alarm = alarms.find(a => a.id === id);
+    if (alarm) {
+      SocialService.saveAlarm({ ...alarm, enabled: !alarm.enabled });
+    }
   };
   const handleQuickHabitToggle = (type: WellnessReminder['type']) => {
     // Find the first uncompleted habit of this type
@@ -356,12 +412,8 @@ export default function App() {
     return 'from-slate-900 via-sunset-wine/40 to-slate-900'; // Night
   }, [currentTime]);
 
-  const isNight = currentTime.getHours() >= 20 || currentTime.getHours() < 5;
+  const [isNight, setIsNight] = useState(currentTime.getHours() >= 20 || currentTime.getHours() < 5);
 
-  const [alarms, setAlarms] = useState<Alarm[]>(() => {
-    const saved = localStorage.getItem('kairos_alarms');
-    return saved ? JSON.parse(saved) : MOCK_ALARMS;
-  });
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [taskCategories, setTaskCategories] = useState<Category[]>(DEFAULT_TASK_CATEGORIES);
   const [eventCategories, setEventCategories] = useState<Category[]>(DEFAULT_EVENT_CATEGORIES);
@@ -392,33 +444,32 @@ export default function App() {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
-  const [preferences, setPreferences] = useState(() => {
-    const saved = localStorage.getItem('kairos_preferences');
-    return saved ? JSON.parse(saved) : {
-      darkMode: false,
-      pushNotifications: true,
-      alarmSound: 'Zen'
-    };
+  const [preferences, setPreferences] = useState({
+    darkMode: false,
+    pushNotifications: true,
+    alarmSound: 'Zen'
   });
 
-  const [userProfile, setUserProfile] = useState(() => {
-    const saved = localStorage.getItem('kairos_profile');
-    return saved ? JSON.parse(saved) : {
-      name: 'Lesly Jhoana',
-      email: 'leslyjhoanav2@gmail.com',
-      photo: 'https://picsum.photos/seed/lesly/200'
-    };
+  const [userProfile, setUserProfile] = useState({
+    name: 'Usuario de Kairos',
+    email: '',
+    photo: `https://api.dicebear.com/7.x/avataaars/svg?seed=kairos`
   });
 
   // AI Insights State
-  const [aiThought, setAiThought] = useState<string>(() => {
-    return localStorage.getItem('kairos_ai_thought') || 'Sintonizando con tu esencia...';
-  });
+  const [aiThought, setAiThought] = useState<string>('Sintonizando con tu esencia...');
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [isAiConsultationOpen, setIsAiConsultationOpen] = useState(false);
   const [consultationResponse, setConsultationResponse] = useState('');
   const [activeQueryType, setActiveQueryType] = useState<AIQueryType | null>(null);
   const [userQuestion, setUserQuestion] = useState('');
+
+  const ACHIEVEMENTS_LIST = [
+    { title: 'Primer Paso', description: 'Completa tu primera tarea', icon: '🎯', condition: (tasks: any[], _streak: number, _balance: number, _wellness: any[]) => tasks.some(t => t.completed) },
+    { title: 'Ritualista', description: 'Completa todos tus hábitos de bienestar por un día', icon: '🧘', condition: (_tasks: any[], _streak: number, _balance: number, wellness: any[]) => wellness.length > 0 && wellness.every(it => it.completed) },
+    { title: 'Guardián del Tiempo', description: 'Mantén una racha de 3 días', icon: '⏳', condition: (_tasks: any[], streak: number, _balance: number, _wellness: any[]) => streak >= 3 },
+    { title: 'Armonía Total', description: 'Logra un 100% de Esencia', icon: '✨', condition: (_tasks: any[], _streak: number, balance: number, _wellness: any[]) => balance === 100 },
+  ];
 
   const lastAIRequestTime = React.useRef<number>(0);
   const aiCooldownMs = 8000; // 8 second cooldown for random thoughts
@@ -446,7 +497,6 @@ export default function App() {
     try {
       const thought = await AIService.getMascotThought(snapshot);
       setAiThought(thought);
-      localStorage.setItem('kairos_ai_thought', thought);
     } catch (e) {
       console.error("AI Thought error", e);
     } finally {
@@ -506,33 +556,12 @@ export default function App() {
     }
   }, [aiThought]);
 
-  // Persistence Effects
-  useEffect(() => { localStorage.setItem('kairos_tasks', JSON.stringify(tasks)); }, [tasks]);
-  useEffect(() => { localStorage.setItem('kairos_wellness', JSON.stringify(wellness)); }, [wellness]);
-  useEffect(() => { localStorage.setItem('kairos_alarms', JSON.stringify(alarms)); }, [alarms]);
-  useEffect(() => { localStorage.setItem('kairos_events', JSON.stringify(events)); }, [events]);
-  useEffect(() => { localStorage.setItem('kairos_routine', JSON.stringify(routine)); }, [routine]);
-  useEffect(() => { localStorage.setItem('kairos_profile', JSON.stringify(userProfile)); }, [userProfile]);
-  useEffect(() => { localStorage.setItem('kairos_preferences', JSON.stringify(preferences)); }, [preferences]);
-
+  // Persistence Effects handled by Firestore subscribers
   const [isMascotRenameOpen, setIsMascotRenameOpen] = useState(false);
 
   useEffect(() => {
-    const today = new Date().toDateString();
-    if (lastCheckIn !== today) {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toDateString();
-
-      if (lastCheckIn === yesterdayStr) {
-        setStreak(prev => prev + 1);
-      } else if (lastCheckIn !== null) {
-        setStreak(1);
-      }
-      
-      setLastCheckIn(today);
-      localStorage.setItem('lastCheckIn', today);
-    }
+    // Streak logic removed from local state, now handled solely by syncProfile logic or AI services if needed.
+    // However, to follow the requirement "streak starts at 0", we ensure the initial profile sync has streak 0.
   }, [lastCheckIn]);
 
   // Form States
@@ -576,7 +605,10 @@ export default function App() {
   };
 
   const toggleEvent = (id: string) => {
-    setEvents(events.map(e => e.id === id ? { ...e, completed: !e.completed } : e));
+    const event = events.find(e => e.id === id);
+    if (event) {
+      SocialService.saveEvent({ ...event, completed: !event.completed });
+    }
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -584,7 +616,9 @@ export default function App() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setUserProfile({ ...userProfile, photo: reader.result as string });
+        const photo = reader.result as string;
+        setUserProfile({ ...userProfile, photo });
+        SocialService.syncProfile({ photoURL: photo });
       };
       reader.readAsDataURL(file);
     }
@@ -1075,124 +1109,178 @@ export default function App() {
       case 'stats':
         return (
           <div className="space-y-8 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar">
-            <header className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-sunset-orange animate-pulse" />
-                <p className="text-[10px] font-black text-sunset-orange uppercase tracking-[0.3em] italic">Análisis</p>
-              </div>
-              <h2 className="text-4xl font-black text-deep-teal tracking-tight leading-none italic">Logros</h2>
-            </header>
+            {/* Organic User Profile Header */}
+            <div className="bg-white rounded-[4rem] p-10 shadow-xl shadow-black/[0.02] border border-slate-100 flex flex-col items-center text-center gap-6 relative overflow-hidden">
+               <div className="absolute top-0 inset-x-0 h-24 sunset-gradient opacity-10" />
+               
+               <div className="relative">
+                  <motion.div 
+                    whileHover={{ scale: 1.05 }}
+                    className="w-32 h-32 rounded-[3.5rem] bg-white p-1.5 shadow-2xl relative z-10 overflow-hidden"
+                  >
+                    <img 
+                      src={user?.photoURL || userProfile.photo} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover rounded-[3rem]"
+                    />
+                  </motion.div>
+                  <motion.div 
+                    animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+                    transition={{ repeat: Infinity, duration: 4 }}
+                    className="absolute inset-0 bg-sunset-orange blur-3xl rounded-full opacity-20 -z-0"
+                  />
+               </div>
 
+               <div className="space-y-1 relative z-10">
+                  <h2 className="text-3xl font-black text-deep-teal tracking-tighter italic">
+                     {user?.displayName || userProfile.name}
+                  </h2>
+                  <p className="text-[10px] font-black text-sunset-orange uppercase tracking-[0.3em]">
+                     {user?.email || userProfile.email}
+                  </p>
+               </div>
 
-
-            {/* Performance Overview Bento */}
-            <div className="grid grid-cols-2 gap-4">
-              <motion.div 
-                whileHover={{ y: -4 }}
-                className="bg-deep-teal rounded-[3.5rem] p-8 flex flex-col gap-6 text-white relative overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                   <Zap size={60} />
-                </div>
-                <div>
-                   <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Rendimiento</p>
-                   <span className="text-4xl font-black tracking-tighter italic">85%</span>
-                </div>
-                <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                   <motion.div 
-                     initial={{ width: 0 }} 
-                     animate={{ width: `${balance}%` }} 
-                     className="h-full bg-mint" 
-                   />
-                </div>
-              </motion.div>
-
-              <motion.div 
-                whileHover={{ y: -4 }}
-                className="bg-sunset-pink rounded-[3.5rem] p-8 flex flex-col gap-6 text-white relative overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                   <Clock size={60} />
-                </div>
-                <div>
-                   <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">En Sintonía</p>
-                   <span className="text-4xl font-black tracking-tighter italic">{streak}d</span>
-                </div>
-                <div className="flex items-center gap-1">
-                   <TrendingUp size={12} />
-                   <span className="text-[9px] font-bold uppercase">Racha Actual</span>
-                </div>
-              </motion.div>
+               {/* Key Stats Bar */}
+               <div className="grid grid-cols-2 gap-4 w-full pt-4">
+                  <div className="bg-rose-50/50 rounded-[2.5rem] p-6 space-y-2 border border-rose-100/50">
+                     <p className="text-[9px] font-black text-rose-300 uppercase tracking-widest leading-none">Racha Vital</p>
+                     <div className="flex items-center justify-center gap-2">
+                        <Zap size={20} className="text-sunset-orange" fill="currentColor" />
+                        <span className="text-2xl font-black text-deep-teal leading-none">{streak}</span>
+                     </div>
+                  </div>
+                  <div className="bg-deep-teal/[0.02] rounded-[2.5rem] p-6 space-y-2 border border-slate-100">
+                     <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none">Esencia Hoy</p>
+                     <div className="flex items-center justify-center gap-2">
+                        <Clock size={20} className="text-deep-teal" fill="currentColor" />
+                        <span className="text-2xl font-black text-deep-teal leading-none font-mono">{balance}%</span>
+                     </div>
+                  </div>
+               </div>
             </div>
 
-            {/* Main Graph Card with Toggle */}
-            <div className="bg-white rounded-[3.5rem] p-8 shadow-xl shadow-black/[0.02] border border-slate-100 space-y-8">
-              <div className="flex justify-between items-center">
-                 <h3 className="text-2xl font-black text-deep-teal tracking-tight italic">Ritmo Vital</h3>
-                 <div className="bg-slate-50 p-1.5 rounded-full flex gap-1">
-                    <button 
-                      onClick={() => setStatsPeriod('week')}
-                      className={`px-4 py-1.5 text-[10px] font-black rounded-full uppercase tracking-widest transition-all ${
-                        statsPeriod === 'week' ? 'bg-deep-teal text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'
-                      }`}
-                    >
-                      Semana
-                    </button>
-                    <button 
-                      onClick={() => setStatsPeriod('month')}
-                      className={`px-4 py-1.5 text-[10px] font-black rounded-full uppercase tracking-widest transition-all ${
-                        statsPeriod === 'month' ? 'bg-deep-teal text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'
-                      }`}
-                    >
-                      Mes
-                    </button>
+            {/* Mascot State Card */}
+            <div className="bg-slate-900 rounded-[4rem] p-10 text-white relative overflow-hidden group">
+               <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-sunset-orange/20 rounded-full blur-[100px] group-hover:bg-sunset-orange/30 transition-colors duration-1000" />
+               <div className="flex items-center gap-8 relative z-10">
+                  <div className="w-24 h-24 bg-white/10 backdrop-blur-xl rounded-[2.5rem] flex items-center justify-center overflow-hidden flex-shrink-0">
+                     <div className="scale-75">
+                        <TimeMascot streak={streak} balance={balance} />
+                     </div>
+                  </div>
+                  <div className="space-y-2">
+                     <h3 className="text-xl font-black italic tracking-tight">{mascotName}</h3>
+                     <p className="text-sm text-white/50 leading-relaxed font-medium">
+                        {balance > 70 ? '¡Está rebosante de energía y armonía!' : balance > 40 ? 'Se siente en equilibrio, pero quiere más.' : 'Necesita un poco de sintonía con tu tiempo.'}
+                     </p>
+                  </div>
+               </div>
+               <button 
+                 onClick={() => setIsMascotRenameOpen(true)}
+                 className="absolute bottom-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-2xl transition-all"
+               >
+                 <Edit2 size={16} />
+               </button>
+            </div>
+
+            {/* Stats Visualization Section */}
+            <div className="bg-white rounded-[4rem] p-10 shadow-xl shadow-black/[0.02] border border-slate-100 space-y-8">
+              <header className="flex justify-between items-center">
+                 <div className="space-y-1">
+                    <h3 className="text-2xl font-black text-deep-teal tracking-tighter italic leading-none">Progreso</h3>
+                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none">Análisis de ritmo</p>
                  </div>
-              </div>
+                 <div className="bg-slate-50 p-1.5 rounded-full flex gap-1">
+                    {['week', 'month'].map(p => (
+                      <button 
+                        key={p}
+                        onClick={() => setStatsPeriod(p as any)}
+                        className={`px-5 py-2.5 text-[9px] font-black rounded-full uppercase tracking-widest transition-all ${
+                          statsPeriod === p ? 'bg-deep-teal text-white shadow-xl' : 'text-slate-400'
+                        }`}
+                      >
+                        {p === 'week' ? 'Semana' : 'Mes'}
+                      </button>
+                    ))}
+                 </div>
+              </header>
+
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={statsData}>
                     <defs>
                       <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={statsPeriod === 'week' ? '#41b8a2' : '#ff7597'} stopOpacity={0.3}/>
+                        <stop offset="5%" stopColor={statsPeriod === 'week' ? '#41b8a2' : '#ff7597'} stopOpacity={0.4}/>
                         <stop offset="95%" stopColor={statsPeriod === 'week' ? '#41b8a2' : '#ff7597'} stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f8fafc" />
+                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fontSize: 9, fontWeight: 900, fill: '#cbd5e1', letterSpacing: '0.1em'}} />
                     <YAxis hide />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '24px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', backdropFilter: 'blur(10px)' }}
-                      itemStyle={{ color: '#1d4d4f', fontWeight: 900, fontSize: '12px' }}
+                      contentStyle={{ backgroundColor: 'rgba(29, 77, 79, 0.95)', borderRadius: '24px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)', color: 'white' }}
+                      itemStyle={{ color: 'white', fontWeight: 900, fontSize: '12px' }}
                     />
                     <Area 
                       type="monotone" 
                       dataKey="value" 
                       stroke={statsPeriod === 'week' ? '#41b8a2' : '#ff7597'} 
-                      strokeWidth={5} 
+                      strokeWidth={6} 
                       fillOpacity={1} 
                       fill="url(#colorValue)" 
                       strokeLinecap="round" 
-                      animationDuration={1000}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
+
+              {/* Achievements Grid */}
+              <div className="space-y-6 pt-6 border-t border-slate-50">
+                 <div className="flex justify-between items-center">
+                    <h4 className="text-[10px] font-black text-deep-teal uppercase tracking-[0.3em]">Logros Coleccionados</h4>
+                    <span className="text-[10px] font-black text-sunset-orange bg-rose-50 px-3 py-1 rounded-full">{achievements.length} / {ACHIEVEMENTS_LIST.length}</span>
+                 </div>
+                 <div className="grid grid-cols-4 gap-4">
+                    {ACHIEVEMENTS_LIST.map((ach) => {
+                       const isUnlocked = achievements.some(a => a.title === ach.title);
+                       return (
+                         <motion.div 
+                           key={ach.title}
+                           whileHover={isUnlocked ? { scale: 1.1, rotate: 5 } : {}}
+                           className={`aspect-square rounded-3xl flex items-center justify-center text-2xl shadow-sm transition-all relative group ${
+                             isUnlocked ? 'bg-amber-50 text-amber-500 border border-amber-100 shadow-amber-100/50' : 'bg-slate-50 text-slate-200 grayscale'
+                           }`}
+                         >
+                           {ach.icon}
+                           
+                           {/* Tooltip on hover */}
+                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-slate-900 text-white text-[8px] font-bold px-3 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20">
+                              {ach.title}
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900" />
+                           </div>
+                         </motion.div>
+                       );
+                    })}
+                 </div>
+              </div>
             </div>
 
-            {/* Ranking Preview Card */}
-            <div className="bg-soft-peach rounded-[3.5rem] p-8 flex justify-between items-center">
-               <div className="flex -space-x-3">
-                  {[1,2,3].map(i => (
-                    <div key={i} className="w-12 h-12 rounded-2xl border-4 border-soft-peach overflow-hidden bg-white">
-                       <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=user${i}`} alt="U" />
-                    </div>
-                  ))}
-                  <div className="w-12 h-12 rounded-2xl border-4 border-soft-peach bg-deep-teal flex items-center justify-center text-white text-xs font-black">+12</div>
-               </div>
-               <div className="text-right space-y-1">
-                  <p className="text-[9px] font-black text-deep-teal/40 uppercase tracking-[0.2em] leading-none italic">Alumni</p>
-                  <p className="text-sm font-black text-deep-teal">Top 10 Global</p>
-               </div>
+            {/* Account Settings Compact Card */}
+            <div className="bg-white rounded-[3.5rem] p-6 shadow-xl shadow-black/[0.01] border border-slate-100 grid grid-cols-2 gap-3">
+               <button 
+                 onClick={() => setIsPreferencesOpen(true)}
+                 className="p-6 bg-slate-50 rounded-3xl flex flex-col items-center gap-3 hover:bg-slate-100 transition-colors"
+               >
+                 <Settings size={20} className="text-slate-400" />
+                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Configuración</span>
+               </button>
+               <button 
+                 onClick={() => signOut(auth)}
+                 className="p-6 bg-rose-50/50 rounded-3xl flex flex-col items-center gap-3 hover:bg-rose-50 transition-colors"
+               >
+                 <LogOut size={20} className="text-rose-400" />
+                 <span className="text-[9px] font-black uppercase tracking-widest text-rose-500">Salir</span>
+               </button>
             </div>
           </div>
         );
@@ -2368,7 +2456,7 @@ export default function App() {
                         enabled: true,
                         days: ['Todos']
                       };
-                      setAlarms([...alarms, alarm]);
+                      SocialService.saveAlarm(alarm);
                       setIsAlarmModalOpen(false);
                       setNewAlarm({ title: '', time: '08:00', category: 'meal' });
                     }}
@@ -2407,8 +2495,8 @@ export default function App() {
             { id: 'tasks', icon: <CheckSquare size={22} />, label: 'Metas' },
             { id: 'dashboard', icon: <LayoutDashboard size={22} />, label: 'Centro' },
             { id: 'alarms', icon: <AlarmClock size={22} />, label: 'Alarmas' },
-            { id: 'stats', icon: <BarChart2 size={22} />, label: 'Logros' },
             { id: 'circles', icon: <Users size={22} />, label: 'Social' },
+            { id: 'stats', icon: <User size={22} />, label: 'Tú' },
           ].map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -2478,19 +2566,20 @@ function AuthScreen() {
       
       const errorCode = err.code;
       const errorMessage = err.message;
+      const currentHost = window.location.hostname;
 
       if (errorCode === 'auth/popup-closed-by-user') {
-        setError('El inicio de sesión fue cancelado.');
+        setError('El inicio de sesión fue cancelado. Asegúrate de completar el proceso en la ventana emergente.');
       } else if (errorCode === 'auth/popup-blocked') {
         setError('El navegador bloqueó la ventana emergente. Por favor, permite ventanas emergentes para este sitio.');
       } else if (errorCode === 'auth/operation-not-allowed') {
-        setError('El inicio de sesión con Google no está habilitado en la consola de Firebase.');
+        setError('El inicio de sesión con Google no está habilitado en la consola de Firebase -> Authentication -> Sign-in method.');
       } else if (errorCode === 'auth/network-request-failed') {
         setError('Error de red. Verifica tu conexión a internet.');
       } else if (errorCode === 'auth/unauthorized-domain') {
-        setError('Error de dominio: Agrega este dominio en la consola de Firebase -> Authentication -> Settings -> Authorized Domains.');
+        setError(`Dominio no autorizado (${currentHost}). Agrégalo en la consola de Firebase -> Authentication -> Settings -> Authorized Domains.`);
       } else {
-        setError(`Error al conectar con Google: ${errorMessage || errorCode}`);
+        setError(`Error (${errorCode}): ${errorMessage}`);
       }
     } finally {
       setLoading(false);
@@ -2554,10 +2643,35 @@ function AuthScreen() {
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="p-4 bg-rose-50 border border-rose-100 rounded-2xl"
+              className="p-4 bg-rose-50 border border-rose-100 rounded-2xl space-y-3"
             >
-              <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{error}</p>
+              <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest leading-relaxed">{error}</p>
+              
+              {error.includes('Dominio no autorizado') && (
+                <button 
+                  onClick={() => navigator.clipboard.writeText(window.location.hostname)}
+                  className="flex items-center gap-2 text-[9px] font-bold text-rose-600 hover:text-rose-700 transition-colors bg-white/50 px-3 py-1.5 rounded-lg border border-rose-100"
+                >
+                  <Copy size={12} />
+                  COPIAR DOMINIO
+                </button>
+              )}
             </motion.div>
+          )}
+
+          {window.self !== window.top && (
+            <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex flex-col items-center gap-2">
+              <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">⚠️ Ejecución en un iframe detectada</p>
+              <a 
+                href={window.location.href} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-[10px] font-bold text-amber-700 bg-white/50 px-4 py-2 rounded-xl border border-amber-100 hover:bg-white transition-all shadow-sm"
+              >
+                <ExternalLink size={14} />
+                ABRIR EN PESTAÑA NUEVA
+              </a>
+            </div>
           )}
 
           <motion.button 

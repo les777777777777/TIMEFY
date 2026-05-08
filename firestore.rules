@@ -77,5 +77,28 @@ service cloud.firestore {
       allow create: if isSignedIn() && incoming().userId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid && (request.method == 'DELETE' || incoming().userId == request.auth.uid);
     }
+
+    // --- Alarms ---
+    match /alarms/{alarmId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid && (request.method == 'DELETE' || incoming().userId == request.auth.uid);
+    }
+
+    // --- Events ---
+    match /events/{eventId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid && (request.method == 'DELETE' || incoming().userId == request.auth.uid);
+    }
+
+    // --- Achievements ---
+    match /achievements/{achievementId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      // Achievements are usually only created, not updated or deleted by user normally, 
+      // but we allow it for consistency with local state management if needed.
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid && (request.method == 'DELETE' || incoming().userId == request.auth.uid);
+    }
   }
 }

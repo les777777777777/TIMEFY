@@ -272,5 +272,82 @@ export const SocialService = {
     return onSnapshot(q, (snap) => {
       callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
+  },
+
+  async saveAlarm(alarm: any) {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      if (alarm.id && !alarm.id.startsWith('temp_')) {
+        await setDoc(doc(db, 'alarms', alarm.id), { ...alarm, userId: user.uid, updatedAt: serverTimestamp() });
+      } else {
+        const { id, ...rest } = alarm;
+        await addDoc(collection(db, 'alarms'), { ...rest, userId: user.uid, createdAt: serverTimestamp() });
+      }
+    } catch (e) { handleFirestoreError(e, OperationType.WRITE, 'alarms'); }
+  },
+
+  async deleteAlarm(alarmId: string) {
+    try {
+      await deleteDoc(doc(db, 'alarms', alarmId));
+    } catch (e) { handleFirestoreError(e, OperationType.DELETE, 'alarms'); }
+  },
+
+  subscribeToAlarms(callback: (alarms: any[]) => void) {
+    const user = auth.currentUser;
+    if (!user) return () => {};
+    const q = query(collection(db, 'alarms'), where('userId', '==', user.uid));
+    return onSnapshot(q, (snap) => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+  },
+
+  async saveEvent(event: any) {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      if (event.id && !event.id.startsWith('temp_')) {
+        await setDoc(doc(db, 'events', event.id), { ...event, userId: user.uid, updatedAt: serverTimestamp() });
+      } else {
+        const { id, ...rest } = event;
+        await addDoc(collection(db, 'events'), { ...rest, userId: user.uid, createdAt: serverTimestamp() });
+      }
+    } catch (e) { handleFirestoreError(e, OperationType.WRITE, 'events'); }
+  },
+
+  async deleteEvent(eventId: string) {
+    try {
+      await deleteDoc(doc(db, 'events', eventId));
+    } catch (e) { handleFirestoreError(e, OperationType.DELETE, 'events'); }
+  },
+
+  subscribeToEvents(callback: (events: any[]) => void) {
+    const user = auth.currentUser;
+    if (!user) return () => {};
+    const q = query(collection(db, 'events'), where('userId', '==', user.uid));
+    return onSnapshot(q, (snap) => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+  },
+
+  async unlockAchievement(achievement: any) {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const q = query(collection(db, 'achievements'), where('userId', '==', user.uid), where('title', '==', achievement.title));
+      const snap = await getDocs(q);
+      if (!snap.empty) return; // Already unlocked
+
+      await addDoc(collection(db, 'achievements'), { ...achievement, userId: user.uid, unlockedAt: serverTimestamp() });
+    } catch (e) { handleFirestoreError(e, OperationType.WRITE, 'achievements'); }
+  },
+
+  subscribeToAchievements(callback: (achievements: any[]) => void) {
+    const user = auth.currentUser;
+    if (!user) return () => {};
+    const q = query(collection(db, 'achievements'), where('userId', '==', user.uid));
+    return onSnapshot(q, (snap) => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
   }
 };

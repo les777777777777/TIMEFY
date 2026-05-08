@@ -63,11 +63,61 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "text", "completed", "type", "createdAt"]
+    },
+    "Alarm": {
+      "title": "Alarm",
+      "description": "User set alarms",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "time": { "type": "string" },
+        "category": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "days": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "time", "enabled"]
+    },
+    "Event": {
+      "title": "Event",
+      "description": "Calendar events",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "location": { "type": "string" },
+        "type": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "startTime", "endTime"]
+    },
+    "Achievement": {
+      "title": "Achievement",
+      "description": "Unlocked user achievements",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "icon": { "type": "string" },
+        "unlockedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "unlockedAt"]
     }
   },
   "firestore": {
     "users": {
-...
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "friendships": {
+      "schema": "Friendship",
+      "description": "Connections between users"
+    },
     "interactions": {
       "schema": "Interaction",
       "description": "Transient support signals"
@@ -79,6 +129,18 @@
     "habits": {
       "schema": "Habit",
       "description": "User wellness rituals and routines"
+    },
+    "alarms": {
+      "schema": "Alarm",
+      "description": "User alarms"
+    },
+    "events": {
+      "schema": "Event",
+      "description": "User calendar events"
+    },
+    "achievements": {
+      "schema": "Achievement",
+      "description": "Unlocked achievements"
     }
   }
 }
