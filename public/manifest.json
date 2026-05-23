@@ -1,0 +1,36 @@
+{
+  "name": "Kairos: Tiempo con sentido",
+  "short_name": "Kairos",
+  "description": "Una experiencia de conciencia del tiempo que equilibra productividad, descanso y bienestar, integrando círculos de acompañamiento sutil.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1527",
+  "theme_color": "#115e59",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ]
+}

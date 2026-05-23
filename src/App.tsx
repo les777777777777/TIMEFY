@@ -462,6 +462,27 @@ export default function App() {
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const installApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`PWA Installation chosen: ${outcome}`);
+    setDeferredPrompt(null);
+  };
+
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
 
   const [userProfile, setUserProfile] = useState({
@@ -1994,6 +2015,31 @@ export default function App() {
                       <option value="Suave">Suave</option>
                       <option value="Clásico">Clásico</option>
                     </select>
+                  </div>
+
+                  {/* PWA Installation Option */}
+                  <div className="border-t border-slate-100 dark:border-slate-800 pt-4 mt-4 space-y-3">
+                    {deferredPrompt ? (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className={`font-bold ${theme.textTitle}`}>Instalar Kairos</p>
+                          <p className={`text-xs ${theme.textMuted}`}>Disfruta como app nativa</p>
+                        </div>
+                        <button 
+                          onClick={installApp}
+                          className="px-4 py-2 bg-primary text-white font-black rounded-xl text-xs hover:scale-[1.03] active:scale-95 transition-all uppercase tracking-wider"
+                        >
+                          Instalar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-1 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <p className={`text-[11px] font-bold ${theme.textTitle}`}>📱 Instalar en tu móvil o PC</p>
+                        <p className={`text-[10px] ${theme.textMuted} leading-relaxed`}>
+                          En Android/PC, búscalo en el menú del navegador. En iPhone/Safari, pulsa <strong className="text-primary font-extrabold">Compartir</strong> y elige <strong className="text-primary font-extrabold">Añadir a pantalla de inicio</strong>.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <button 
