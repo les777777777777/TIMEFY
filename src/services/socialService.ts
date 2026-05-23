@@ -56,15 +56,18 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
-export interface UserProfile {
-  uid: string;
-  kairosId: string;
-  name: string;
-  photoURL: string;
-  mascotName: string;
-  streak: number;
-  balance: number;
-  lastActive: any;
+const isNewUser = !snap.exists();
+
+const newData = {
+  uid: user.uid,
+  kairosId,
+  name: existingData.name || user.displayName || profile.name || 'Usuario',
+  photoURL: existingData.photoURL || user.photoURL || profile.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+  mascotName: isNewUser ? 'Kairo' : (existingData.mascotName || 'Kairo'),
+  streak:     isNewUser ? 0 : (existingData.streak ?? 0),
+  balance:    isNewUser ? 0 : (existingData.balance ?? 0),
+  lastActive: serverTimestamp(),
+};
 }
 
 export interface Interaction {
