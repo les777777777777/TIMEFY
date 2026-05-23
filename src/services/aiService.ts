@@ -110,5 +110,37 @@ export const AIService = {
     };
 
     return executeWithRetry();
+  },
+
+  async getChatResponse(
+    snapshot: UserSnapshot,
+    chatHistory: { sender: 'user' | 'bot'; text: string }[]
+  ): Promise<string> {
+    if (!process.env.GEMINI_API_KEY) {
+      return "Para una guía real, configura tu llave de API. Mientras tanto, sigue buscando el equilibrio con Kairo.";
+    }
+
+    const systemPrompt = `Eres Kairo, el asistente IA personal de esta app de productividad. El usuario tiene: ${snapshot.streak} días de racha, ${snapshot.balance}% de esencia/balance, ${snapshot.tasksTotal} tareas (${snapshot.tasksCompleted} completadas), ${snapshot.wellnessTotal} hábitos de bienestar (${snapshot.wellnessCompleted} completados), ${snapshot.routineTotal} rutinas. Responde siempre en español, de forma motivadora, concisa y personalizada. Puedes ayudar con: organización del tiempo, motivación, consejos de productividad, bienestar, y cualquier pregunta general.`;
+
+    // Map history to the format expected by GoogleGenAI generateContent (role: user or model)
+    const contents = chatHistory.map(msg => ({
+      role: msg.sender === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.text }]
+    }));
+
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.8,
+        }
+      });
+      return response.text?.trim() || "He sentido una perturbación en el flujo temporal, ¿podrías repetirme la pregunta?";
+    } catch (error) {
+      console.error("Error in getChatResponse:", error);
+      return "Mi sintonía con la esencia del tiempo ha fallado temporalmente, pero sigo aquí para ayudarte.";
+    }
   }
 };

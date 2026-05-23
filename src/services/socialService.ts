@@ -92,6 +92,8 @@ export const SocialService = {
         kairosId = `@kairos_${Math.floor(1000 + Math.random() * 9000)}`;
       }
 
+      const isNewUser = !snap.exists();
+
       const newData = {
         uid: user.uid,
         kairosId,
@@ -348,6 +350,36 @@ export const SocialService = {
     const q = query(collection(db, 'achievements'), where('userId', '==', user.uid));
     return onSnapshot(q, (snap) => {
       callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+  },
+
+  async saveProgressHistory(date: string, value: number) {
+    const user = auth.currentUser;
+    if (!user) return;
+    const docId = `${user.uid}_${date}`;
+    try {
+      await setDoc(doc(db, 'progressHistory', docId), {
+        userId: user.uid,
+        date,
+        value
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `progressHistory/${docId}`);
+    }
+  },
+
+  subscribeToProgressHistory(callback: (history: any[]) => void) {
+    const user = auth.currentUser;
+    if (!user) return () => {};
+    const q = query(
+      collection(db, 'progressHistory'), 
+      where('userId', '==', user.uid),
+      orderBy('date', 'asc')
+    );
+    return onSnapshot(q, (snap) => {
+      callback(snap.docs.map(d => d.data()));
+    }, (e) => {
+      handleFirestoreError(e, OperationType.LIST, 'progressHistory');
     });
   }
 };

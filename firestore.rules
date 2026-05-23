@@ -100,5 +100,12 @@ service cloud.firestore {
       // but we allow it for consistency with local state management if needed.
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid && (request.method == 'DELETE' || incoming().userId == request.auth.uid);
     }
+
+    // --- Progress History ---
+    match /progressHistory/{historyId} {
+      allow read, list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create, update: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
   }
 }

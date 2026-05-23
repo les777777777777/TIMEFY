@@ -107,6 +107,17 @@
         "unlockedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "title", "unlockedAt"]
+    },
+    "ProgressHistory": {
+      "title": "ProgressHistory",
+      "description": "Daily balance records for stats mapping",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "value": { "type": "number" }
+      },
+      "required": ["userId", "date", "value"]
     }
   },
   "firestore": {
@@ -141,6 +152,10 @@
     "achievements": {
       "schema": "Achievement",
       "description": "Unlocked achievements"
+    },
+    "progressHistory": {
+      "schema": "ProgressHistory",
+      "description": "Daily timeline records of user time balances"
     }
   }
 }

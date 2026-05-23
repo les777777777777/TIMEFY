@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutDashboard, 
   CheckSquare, 
@@ -43,7 +43,9 @@ import {
   Sparkles,
   X,
   Copy,
-  ExternalLink
+  ExternalLink,
+  MessageSquare,
+  Send
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -185,7 +187,30 @@ const MOCK_NOTIFICATIONS = [
 import { TimeMascot } from './components/TimeMascot';
 import { AIService, UserSnapshot, AIQueryType } from './services/aiService';
 
+const MiniKairoIcon: React.FC<{ balance: number }> = ({ balance }) => {
+  const getMoodColor = () => {
+    if (balance < 30) return '#4dabf7'; // Soft Blue
+    if (balance < 50) return '#adb5bd'; // Soft Grey
+    if (balance < 80) return '#fcc419'; // Yellow
+    return '#ff6b6b'; // Red-Orange
+  };
+  const color = getMoodColor();
+  const mouthPath = balance < 30 
+    ? "M45 65 Q50 55 55 65" 
+    : balance < 50 
+    ? "M45 60 Q50 60 55 60"
+    : "M45 58 Q50 68 55 58";
 
+  return (
+    <div className="w-8 h-8 rounded-xl overflow-hidden shadow-md flex items-center justify-center bg-white/10" style={{ backgroundColor: color }}>
+      <svg viewBox="0 0 100 100" className="w-6 h-6">
+        <circle cx="36" cy="45" r="5" fill="#2d3436" />
+        <circle cx="64" cy="45" r="5" fill="#2d3436" />
+        <path d={mouthPath} fill="none" stroke="#2d3436" strokeWidth="3" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+};
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -207,6 +232,23 @@ export default function App() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [achievements, setAchievements] = useState<any[]>([]);
+  const [progressHistory, setProgressHistory] = useState<{ date: string; value: number }[]>([]);
+  const unlockingTitles = useRef<Set<string>>(new Set());
+
+  // Kairo Bot State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ sender: 'user' | 'bot'; text: string }[]>([
+    { sender: 'bot', text: '¡Hola! Soy Kairo, tu guardián y guía personal. ¿En qué puedo ayudarte a sintonizar tu tiempo y bienestar hoy?' }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatTyping, setIsChatTyping] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, isChatTyping]);
 
   // Calculate Balance - Derived from real-time state
   const balance = useMemo(() => {
@@ -226,6 +268,7 @@ export default function App() {
     let unsubscribeAlarms: () => void;
     let unsubscribeEvents: () => void;
     let unsubscribeAchievements: () => void;
+    let unsubscribeProgressHistory: () => void;
 
     if (isAuthenticated && user) {
       // Initialize profile if it doesn't exist
@@ -267,6 +310,11 @@ export default function App() {
       unsubscribeAchievements = SocialService.subscribeToAchievements((syncedAchievements) => {
         setAchievements(syncedAchievements);
       });
+
+      // Subscribe to Progress History
+      unsubscribeProgressHistory = SocialService.subscribeToProgressHistory((syncedHistory) => {
+        setProgressHistory(syncedHistory);
+      });
     }
 
     return () => {
@@ -276,6 +324,7 @@ export default function App() {
       if (unsubscribeAlarms) unsubscribeAlarms();
       if (unsubscribeEvents) unsubscribeEvents();
       if (unsubscribeAchievements) unsubscribeAchievements();
+      if (unsubscribeProgressHistory) unsubscribeProgressHistory();
     };
   }, [isAuthenticated, user]);
 
@@ -328,11 +377,21 @@ export default function App() {
     if (isAuthenticated && user) {
       SocialService.syncProfile({ streak, balance, mascotName });
       
+      const getLocalDateString = () => {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      SocialService.saveProgressHistory(getLocalDateString(), balance);
+      
       // Check for achievements
       ACHIEVEMENTS_LIST.forEach(ach => {
-        if (!achievements.some(a => a.title === ach.title)) {
+        if (!achievements.some(a => a.title === ach.title) && !unlockingTitles.current.has(ach.title)) {
            if (ach.condition(tasks, streak, balance, wellness)) {
-             SocialService.unlockAchievement({
+             unlockingTitles.current.add(ach.title);
+              SocialService.unlockAchievement({
                title: ach.title,
                description: ach.description,
                icon: ach.icon
@@ -359,14 +418,71 @@ export default function App() {
 
   const [statsPeriod, setStatsPeriod] = useState<'week' | 'month'>('week');
 
-  const MOCK_MONTH_STATS = [
-    { day: 'Sem 1', value: 45 },
-    { day: 'Sem 2', value: 75 },
-    { day: 'Sem 3', value: 60 },
-    { day: 'Sem 4', value: 95 },
-  ];
+  const statsData = useMemo(() => {
+    if (progressHistory.length === 0) {
+      return [{ day: 'Hoy', value: balance }];
+    }
+    
+    const sorted = [...progressHistory].sort((a, b) => a.date.localeCompare(b.date));
+    const limitCount = statsPeriod === 'week' ? 7 : 30;
+    const filtered = sorted.slice(-limitCount);
+    
+    return filtered.map(item => {
+      try {
+        const d = new Date(item.date + 'T00:00:00');
+        const dayName = d.toLocaleDateString('es-ES', { weekday: 'short' });
+        const formattedDayName = dayName ? dayName.charAt(0).toUpperCase() + dayName.slice(1).replace('.', '') : item.date;
+        return {
+          day: formattedDayName,
+          value: item.value
+        };
+      } catch (e) {
+        return {
+          day: item.date,
+          value: item.value
+        };
+      }
+    });
+  }, [progressHistory, balance, statsPeriod]);
 
-  const statsData = statsPeriod === 'week' ? MOCK_STATS : MOCK_MONTH_STATS;
+  // Handle Send Chat Message
+  const handleSendChatMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!chatInput.trim() || isChatTyping) return;
+
+    const userText = chatInput;
+    setChatInput('');
+    setChatMessages(prev => [...prev, { sender: 'user', text: userText }]);
+    setIsChatTyping(true);
+
+    const snapshot: UserSnapshot = {
+      tasksCompleted: tasks.filter(t => t.completed).length,
+      tasksTotal: tasks.length || 1,
+      routineCompleted: routine.filter(r => r.completed).length,
+      routineTotal: routine.length || 1,
+      wellnessCompleted: wellness.filter(w => w.completed).length,
+      wellnessTotal: wellness.length || 1,
+      streak,
+      balance,
+      mascotName,
+      state: balance > 70 ? 'constant' : balance < 30 ? 'inactive' : 'active'
+    };
+
+    const activeMessages = [
+      ...chatMessages,
+      { sender: 'user' as const, text: userText }
+    ];
+
+    try {
+      const gptReply = await AIService.getChatResponse(snapshot, activeMessages);
+      setChatMessages(prev => [...prev, { sender: 'bot', text: gptReply }]);
+    } catch (err) {
+      console.error("Chat Error:", err);
+      setChatMessages(prev => [...prev, { sender: 'bot', text: "Lo siento, mi conexión con el flujo temporal se ha visto alterada de momento. Inténtenlo de nuevo por favor." }]);
+    } finally {
+      setIsChatTyping(false);
+    }
+  };
 
   // Toggle Alarm
   const toggleAlarm = (id: string) => {
@@ -501,9 +617,11 @@ export default function App() {
 
   const ACHIEVEMENTS_LIST = [
     { title: 'Primer Paso', description: 'Completa tu primera tarea', icon: '🎯', condition: (tasks: any[], _streak: number, _balance: number, _wellness: any[]) => tasks.some(t => t.completed) },
-    { title: 'Ritualista', description: 'Completa todos tus hábitos de bienestar por un día', icon: '🧘', condition: (_tasks: any[], _streak: number, _balance: number, wellness: any[]) => wellness.length > 0 && wellness.every(it => it.completed) },
+    { title: 'Ritualista', description: 'Completa todos tus hábitos de bienestar en un día', icon: '🧘', condition: (_tasks: any[], _streak: number, _balance: number, wellness: any[]) => wellness.length > 0 && wellness.every(w => w.completed) },
     { title: 'Guardián del Tiempo', description: 'Mantén una racha de 3 días', icon: '⏳', condition: (_tasks: any[], streak: number, _balance: number, _wellness: any[]) => streak >= 3 },
-    { title: 'Armonía Total', description: 'Logra un 100% de Esencia', icon: '✨', condition: (_tasks: any[], _streak: number, balance: number, _wellness: any[]) => balance === 100 },
+    { title: 'Armonía Total', description: 'Logra 100% de Esencia', icon: '✨', condition: (_tasks: any[], _streak: number, balance: number, _wellness: any[]) => balance === 100 },
+    { title: 'Constante', description: 'Mantén una racha de 7 días', icon: '🏆', condition: (_tasks: any[], streak: number, _balance: number, _wellness: any[]) => streak >= 7 },
+    { title: 'Maestro Kairos', description: 'Logra más de 80% de Esencia por primera vez', icon: '👑', condition: (_tasks: any[], _streak: number, balance: number, _wellness: any[]) => balance >= 80 },
   ];
 
   const lastAIRequestTime = React.useRef<number>(0);
@@ -1264,7 +1382,7 @@ export default function App() {
               <div className={`space-y-6 pt-6 border-t ${theme.border}`}>
                  <div className="flex justify-between items-center">
                     <h4 className={`text-[10px] font-black ${theme.textTitle} uppercase tracking-[0.3em]`}>Logros Coleccionados</h4>
-                    <span className={`text-[10px] font-black text-sunset-orange ${preferences.darkMode ? 'bg-rose-950/20' : 'bg-rose-50'} px-3 py-1 rounded-full`}>{achievements.length} / {ACHIEVEMENTS_LIST.length}</span>
+                    <span className={`text-[10px] font-black text-sunset-orange ${preferences.darkMode ? 'bg-rose-950/20' : 'bg-rose-50'} px-3 py-1 rounded-full`}>{ACHIEVEMENTS_LIST.filter(ach => achievements.some(a => a.title === ach.title)).length} / {ACHIEVEMENTS_LIST.length}</span>
                  </div>
                  <div className="grid grid-cols-4 gap-4">
                     {ACHIEVEMENTS_LIST.map((ach) => {
@@ -2671,6 +2789,151 @@ export default function App() {
           })}
         </nav>
       </footer>
+
+      {/* Floating Kairo AI Chat Button */}
+      {!isChatOpen && (
+        <motion.button
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          whileHover={{ scale: 1.1, rotate: 5 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setIsChatOpen(true)}
+          className="fixed bottom-28 right-6 md:right-[calc(50%-13rem)] z-[100] w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#ff6b6b] to-sunset-orange text-white shadow-lg flex items-center justify-center cursor-pointer border border-white/20"
+          id="kairo-chat-toggle"
+        >
+          <Sparkles size={24} className="animate-pulse" />
+        </motion.button>
+      )}
+
+      {/* Kairo AI Chat Modal */}
+      <AnimatePresence>
+        {isChatOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsChatOpen(false)}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+              id="kairo-chat-backdrop"
+            />
+            {/* Chat Container */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              className={`relative w-full max-w-sm h-[500px] ${preferences.darkMode ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-100'} backdrop-blur-3xl rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border`}
+              id="kairo-chat-container"
+            >
+              {/* Header */}
+              <div className={`p-5 flex items-center justify-between border-b ${preferences.darkMode ? 'border-white/5 bg-slate-900/20' : 'border-slate-100 bg-slate-50/50'}`}>
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <MiniKairoIcon balance={balance} />
+                    <span className="absolute bottom-[-1px] right-[-1px] w-2.5 h-2.5 bg-mint rounded-full border border-white" />
+                  </div>
+                  <div>
+                    <h3 className={`text-sm font-black ${theme.textTitle} tracking-tight`}>{mascotName}</h3>
+                    <p className="text-[9px] text-mint font-black uppercase tracking-widest flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-mint animate-ping" />
+                      Guía del Tiempo
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsChatOpen(false)}
+                  className={`p-2 rounded-xl transition-all ${preferences.darkMode ? 'hover:bg-white/5 text-white/45 hover:text-white' : 'hover:bg-slate-100 text-slate-400 hover:text-slate-600'}`}
+                  id="close-chat-btn"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Message List */}
+              <div className="flex-grow overflow-y-auto p-4 space-y-4 no-scrollbar flex flex-col">
+                {chatMessages.map((msg, idx) => {
+                  const isUser = msg.sender === 'user';
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-end gap-2 max-w-[85%] ${isUser ? 'self-end flex-row-reverse' : 'self-start'}`}
+                    >
+                      {/* Mascot avatar on left side (for Kairo) */}
+                      {!isUser && (
+                        <div className="flex-shrink-0 self-end mb-1">
+                          <MiniKairoIcon balance={balance} />
+                        </div>
+                      )}
+
+                      <div
+                        className={`p-3.5 rounded-2xl text-xs leading-relaxed ${
+                          isUser
+                            ? 'bg-gradient-to-tr from-[#ff6b6b] to-sunset-orange text-white rounded-br-none font-medium shadow-md md:rounded-br-sm'
+                            : preferences.darkMode
+                            ? 'bg-slate-900/90 text-white rounded-bl-none border border-white/5 md:rounded-bl-sm'
+                            : 'bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200/50 md:rounded-bl-sm'
+                        }`}
+                      >
+                        <p>{msg.text}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Loading indicator */}
+                {isChatTyping && (
+                  <div className="flex items-end gap-2 max-w-[85%] self-start">
+                    <div className="flex-shrink-0 self-end mb-1">
+                      <MiniKairoIcon balance={balance} />
+                    </div>
+                    <div
+                      className={`p-3.5 rounded-2xl rounded-bl-none flex items-center gap-1.5 ${
+                        preferences.darkMode ? 'bg-slate-900/90' : 'bg-slate-100'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Chat Form Footer */}
+              <form
+                onSubmit={handleSendChatMessage}
+                className={`p-3 border-t flex items-center gap-2 ${
+                  preferences.darkMode ? 'border-white/5 bg-slate-900/10' : 'border-slate-100 bg-slate-50/50'
+                }`}
+              >
+                <input
+                  type="text"
+                  placeholder={`Escribe un mensaje a ${mascotName}...`}
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  disabled={isChatTyping}
+                  className={`flex-grow p-3 text-xs rounded-xl border ${
+                    preferences.darkMode
+                      ? 'bg-slate-900 border-white/5 focus:ring-sunset-orange text-white'
+                      : 'bg-white border-slate-200 focus:ring-[#ff6b6b]/40 text-slate-800'
+                  } focus:outline-none focus:ring-2 transition-all disabled:opacity-50`}
+                  id="chat-text-input"
+                />
+                <button
+                  type="submit"
+                  disabled={!chatInput.trim() || isChatTyping}
+                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-tr from-[#ff6b6b] to-sunset-orange text-white hover:opacity-90 active:scale-95 transition-all shadow-md disabled:opacity-40 disabled:scale-100 cursor-pointer"
+                  id="chat-send-btn"
+                >
+                  <Send size={15} />
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
