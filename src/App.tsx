@@ -660,12 +660,13 @@ export default function App() {
   };
 
   const renderContent = () => {
+    const nivel = Math.max(1, Math.floor(streak * 0.5 + balance * 0.3));
     switch (activeTab) {
       case 'dashboard':
         return (
           <div className="space-y-6 pb-40">
             {/* Immersive Header Card */}
-            <section className="px-6 pt-12">
+            <section className="px-6 pt-6">
               <header className="mb-8 space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-sunset-orange animate-pulse" />
@@ -693,14 +694,6 @@ export default function App() {
                       <motion.button 
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
-                        className="bg-black/90 px-5 py-2.5 rounded-[2rem] text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center gap-2"
-                      >
-                        <Zap size={14} className="text-sunset-orange" fill="currentColor" />
-                        Demo
-                      </motion.button>
-                      <motion.button 
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
                         onClick={() => setIsProfileOpen(true)}
                         className="w-12 h-12 rounded-[1.5rem] border-2 border-white/40 overflow-hidden"
                       >
@@ -713,7 +706,7 @@ export default function App() {
                     <div className="bg-white/20 backdrop-blur-3xl rounded-[2.5rem] p-6 border border-white/20">
                       <div className="flex justify-between items-center">
                         <div className="space-y-1">
-                          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 italic">Nivel 22</p>
+                          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 italic">Nivel {nivel}</p>
                           <h2 className="text-xl font-black leading-none">Mi Esencia Kairos</h2>
                         </div>
                         <div className="flex gap-3">
@@ -734,7 +727,7 @@ export default function App() {
             </section>
 
             {/* Bento Grid Content */}
-            <section className="px-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <section className="px-6 grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Main Mascot Card */}
               <motion.div 
                 initial={{ opacity: 0, x: -20 }}
@@ -749,10 +742,10 @@ export default function App() {
                 <div className="relative z-10 flex flex-col h-full">
                   {/* Mascot and Progress Ring */}
                    <div className="relative flex-1 flex items-center justify-center scale-90">
-                      <TimeMascot streak={streak} balance={balance} />
+                      <TimeMascot streak={streak} balance={balance} className="py-2" />
                    </div>
                    
-                   <div className="bg-deep-teal rounded-[3rem] p-8 text-white flex justify-between items-center">
+                   <div className="bg-deep-teal rounded-[3rem] p-5 text-white flex justify-between items-center">
                       <div className="space-y-1">
                          <p className="text-[10px] font-black tracking-[0.2em] opacity-60 uppercase italic">Sincronía</p>
                          <h3 className="text-2xl font-black leading-none">{balance}%</h3>

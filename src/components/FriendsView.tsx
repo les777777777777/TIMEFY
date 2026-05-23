@@ -29,9 +29,10 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ darkMode }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<UserProfile | null>(null);
   const [searchId, setSearchId] = useState('');
-  const [searchResult, setSearchResult] = useState<UserProfile | null>(null);
+  const [searchResult, setSearchResult] = useState<UserProfile | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [copiedShare, setCopiedShare] = useState(false);
 
   const theme = {
     bg: darkMode ? 'bg-slate-950' : 'bg-slate-50',
@@ -71,10 +72,33 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ darkMode }) => {
     }
   };
 
+  const handleShareLink = async () => {
+    const textToShare = `Únete a Kairos con mi ID: ${myProfile?.kairosId || ''} — https://timefy-two.vercel.app`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          text: textToShare
+        });
+      } catch (err) {
+        console.log('Error sharing:', err);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(textToShare);
+        setCopiedShare(true);
+        setTimeout(() => setCopiedShare(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy text: ', err);
+      }
+    }
+  };
+
   const handleSearch = async () => {
-    if (!searchId.startsWith('@')) return;
-    const result = await SocialService.getUserByKairosId(searchId);
-    setSearchResult(result);
+    const term = searchId.trim();
+    if (!term) return;
+    const normalizedId = term.startsWith('@') ? term : `@${term}`;
+    const result = await SocialService.getUserByKairosId(normalizedId);
+    setSearchResult(result || null);
   };
 
   const handleAddFriend = async (uid: string) => {
@@ -213,10 +237,20 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ darkMode }) => {
                   <Copy size={16} />
                 </button>
                 <button 
+                  onClick={handleShareLink}
                   className="w-full p-6 sunset-gradient rounded-[2rem] flex items-center justify-center gap-3 text-white shadow-xl shadow-sunset-orange/20 font-black text-[11px] uppercase tracking-widest"
                 >
-                  <Share2 size={18} />
-                  Compartir Enlace
+                  {copiedShare ? (
+                    <>
+                      <Check size={18} />
+                      ¡Enlace Copiado!
+                    </>
+                  ) : (
+                    <>
+                      <Share2 size={18} />
+                      Compartir Enlace
+                    </>
+                  )}
                 </button>
               </div>
             </motion.div>
@@ -248,7 +282,10 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ darkMode }) => {
                   placeholder="@kairos_..."
                   className={`flex-1 p-5 ${theme.inputBg} border ${theme.border} rounded-[1.5rem] focus:ring-4 focus:ring-sunset-orange/10 font-black ${theme.text} uppercase tracking-widest outline-none`}
                   value={searchId}
-                  onChange={(e) => setSearchId(e.target.value.toLowerCase())}
+                  onChange={(e) => {
+                    setSearchId(e.target.value.toLowerCase());
+                    setSearchResult(undefined);
+                  }}
                 />
                 <button 
                   onClick={handleSearch}
@@ -279,6 +316,12 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ darkMode }) => {
                     <UserPlus size={16} />
                   </button>
                 </motion.div>
+              )}
+
+              {searchResult === null && searchId.trim().length > 2 && (
+                <div className="p-4 bg-rose-500/10 text-rose-500 rounded-2xl text-xs font-bold text-center">
+                  No se encontró ningún usuario con ese ID
+                </div>
               )}
             </motion.div>
           </div>

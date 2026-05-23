@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface TimeMascotProps {
   streak: number;
   balance: number; // 0 to 100
+  className?: string;
 }
 
-export const TimeMascot: React.FC<TimeMascotProps> = ({ streak, balance }) => {
+export const TimeMascot: React.FC<TimeMascotProps> = ({ streak, balance, className = 'py-20' }) => {
   // Moods based on balance
   const getMood = () => {
     if (balance < 30) return 'sad'; // Blue/Sad
@@ -80,7 +81,7 @@ export const TimeMascot: React.FC<TimeMascotProps> = ({ streak, balance }) => {
   }, [messages.length]);
 
   return (
-    <div className="relative flex flex-col items-center justify-center py-20 overflow-visible">
+    <div className={`relative flex flex-col items-center justify-center overflow-visible ${className}`}>
       {/* Dynamic Multi-layered Aura */}
       <div className="absolute inset-0 flex items-center justify-center -z-10">
         <motion.div
