@@ -870,7 +870,7 @@ export default function App() {
                       </div>
                       <motion.button
                         whileHover={{ scale: 1.1, rotate: 90 }}
-                        className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center border border-white/10"
+                        onClick={() => setActiveTab('stats')} className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center border border-white/10"
                       >
                          <ArrowRight size={20} />
                       </motion.button>
@@ -924,7 +924,7 @@ export default function App() {
                          </div>
                          <motion.button 
                            whileHover={{ x: 5 }}
-                           onClick={() => setIsAiConsultationOpen(true)}
+                           onClick={() => setIsChatOpen(true)}
                            className="text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 text-white/50 hover:text-mint transition-colors"
                          >
                            Explorar Más <ArrowRight size={14} />
