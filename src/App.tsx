@@ -868,12 +868,13 @@ export default function App() {
                          <p className="text-[10px] font-black tracking-[0.2em] opacity-60 uppercase italic">Sincronía</p>
                          <h3 className="text-2xl font-black leading-none">{balance}%</h3>
                       </div>
-                      <motion.button
-                        whileHover={{ scale: 1.1, rotate: 90 }}
-                        onClick={() => setActiveTab('stats')} className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center border border-white/10"
+                      <button
+                        onClick={() => setActiveTab('stats')}
+                        className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center border border-white/10 relative z-50 hover:scale-110 hover:rotate-90 transition-all duration-300 pointer-events-auto"
+                        style={{ zIndex: 50, position: 'relative' }}
                       >
                          <ArrowRight size={20} />
-                      </motion.button>
+                      </button>
                    </div>
                 </div>
               </motion.div>
