@@ -863,18 +863,19 @@ export default function App() {
                       <TimeMascot streak={streak} balance={balance} className="py-2" />
                    </div>
                    
-                   <div className="bg-deep-teal rounded-[3rem] p-5 text-white flex justify-between items-center">
+                   <div 
+                     onClick={() => setActiveTab('stats')}
+                     className="cursor-pointer bg-deep-teal rounded-[3rem] p-5 text-white flex justify-between items-center hover:brightness-110 active:scale-[0.98] transition-all duration-200 pointer-events-auto shadow-lg shadow-deep-teal/20"
+                     style={{ zIndex: 50, position: 'relative' }}
+                   >
                       <div className="space-y-1">
-                         <p className="text-[10px] font-black tracking-[0.2em] opacity-60 uppercase italic">Sincronía</p>
-                         <h3 className="text-2xl font-black leading-none">{balance}%</h3>
+                         <p className="text-[10px] font-black tracking-[0.2em] opacity-80 uppercase italic">Sincronía</p>
+                         <h3 className="text-xl font-black leading-none">Ver mi Progreso</h3>
                       </div>
-                      <button
-                        onClick={() => setActiveTab('stats')}
-                        className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center border border-white/10 relative z-50 hover:scale-110 hover:rotate-90 transition-all duration-300 pointer-events-auto"
-                        style={{ zIndex: 50, position: 'relative' }}
-                      >
-                         <ArrowRight size={20} />
-                      </button>
+                      <div className="font-mono text-3xl font-black bg-white/10 px-4 py-2 rounded-2xl border border-white/10 flex items-center gap-2">
+                         <span>{balance}%</span>
+                         <ArrowRight size={18} />
+                      </div>
                    </div>
                 </div>
               </motion.div>
