@@ -212,6 +212,44 @@ const MiniKairoIcon: React.FC<{ balance: number }> = ({ balance }) => {
   );
 };
 
+const resolveCustomHabitVisuals = (name: string, isDone: boolean, isDark: boolean) => {
+  const normalized = name.toLowerCase().trim();
+  let icon = <Bell size={24} />;
+  let color = isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-50 text-slate-500';
+  let activeColor = 'bg-slate-500 text-white';
+
+  if (/agua|hidrat|water/.test(normalized)) {
+    icon = <Droplets size={24} />;
+    color = isDark ? 'bg-slate-800 text-sky-400' : 'bg-sky-50 text-sky-500';
+    activeColor = 'bg-sky-500 text-white';
+  } else if (/comida|comer|almuerz|desayun|cena/.test(normalized)) {
+    icon = <Utensils size={24} />;
+    color = isDark ? 'bg-slate-800 text-orange-400' : 'bg-orange-50 text-orange-500';
+    activeColor = 'bg-orange-500 text-white';
+  } else if (/dormir|sueño|descanso|relax|noche/.test(normalized)) {
+    icon = <Moon size={24} />;
+    color = isDark ? 'bg-slate-800 text-purple-400' : 'bg-purple-50 text-purple-500';
+    activeColor = 'bg-purple-500 text-white';
+  } else if (/medicina|vitamina|pastilla|pill/.test(normalized)) {
+    icon = <Pill size={24} />;
+    color = isDark ? 'bg-slate-800 text-indigo-400' : 'bg-indigo-50 text-indigo-500';
+    activeColor = 'bg-indigo-500 text-white';
+  } else if (/ejercicio|gym|correr|deporte|entrena/.test(normalized)) {
+    icon = <Zap size={24} />;
+    color = isDark ? 'bg-slate-800 text-emerald-400' : 'bg-emerald-50 text-emerald-500';
+    activeColor = 'bg-emerald-500 text-white';
+  } else if (/meditar|meditación|zen|respira/.test(normalized)) {
+    icon = <Sparkles size={24} />;
+    color = isDark ? 'bg-slate-800 text-pink-400' : 'bg-pink-50 text-pink-500';
+    activeColor = 'bg-pink-500 text-white';
+  }
+
+  return {
+    icon,
+    classes: isDone ? activeColor : `${color} border border-transparent`
+  };
+};
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -289,10 +327,10 @@ export default function App() {
 
       // Subscribe to Wellness/Routine (Habits)
       unsubscribeHabits = SocialService.subscribeToHabits((syncedHabits) => {
-        const wellnessItems = syncedHabits.filter(h => h.group === 'wellness');
+        const wellnessItems = syncedHabits.filter(h => h.group === 'wellness' || h.group === 'quickHabit');
         const routineItems = syncedHabits.filter(h => h.group === 'routine');
         
-        setWellness(wellnessItems as WellnessReminder[]);
+        setWellness(wellnessItems as any[]);
         setRoutine(routineItems as RoutineItem[]);
       });
 
@@ -498,22 +536,25 @@ export default function App() {
     if (habit) {
       toggleWellness(habit.id);
     } else {
-      // If all are completed or none exist, toggle the last completed one to "uncomplete" 
-      // or just create a new one? Toggling is better for the prompt's "marcar acciones rápidas".
-      const lastHabit = [...wellness].reverse().find(w => w.type === type);
-      if (lastHabit) {
-        toggleWellness(lastHabit.id);
-      } else {
-        // Create a new one if none exists
-        const newH: WellnessReminder = {
-          id: 'temp_' + Math.random().toString(36).substr(2, 9),
-          type,
-          label: type === 'water' ? 'Beber agua' : type === 'food' ? 'Nutrición' : type === 'medicine' ? 'Medicación' : 'Descanso',
-          time: currentTime.getHours() + ':' + currentTime.getMinutes().toString().padStart(2, '0'),
-          completed: true
-        };
-        SocialService.saveHabit({ ...newH, category: 'wellness' });
-      }
+      // Create a new one directly if none exists or if all are completed
+      const defaultLabels: Record<string, string> = {
+        water: 'Beber agua',
+        food: 'Almuerzo saludable',
+        rest: 'Descanso visual',
+        medicine: 'Vitaminas',
+        zen: 'Meditación'
+      };
+      const label = defaultLabels[type] || 'Hábito rápido';
+      
+      const newH: any = {
+        id: 'quick_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+        type,
+        label,
+        time: currentTime.getHours().toString().padStart(2, '0') + ':' + currentTime.getMinutes().toString().padStart(2, '0'),
+        completed: true,
+        group: 'wellness'
+      };
+      SocialService.saveHabit({ ...newH, category: 'wellness' });
     }
     setTimeout(refreshAIThought, 500);
   };
@@ -577,6 +618,9 @@ export default function App() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
+  const [isAddQuickHabitOpen, setIsAddQuickHabitOpen] = useState(false);
+  const [newQuickHabitName, setNewQuickHabitName] = useState('');
 
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
@@ -863,20 +907,20 @@ export default function App() {
                       <TimeMascot streak={streak} balance={balance} className="py-2" />
                    </div>
                    
-                   <div 
-                     onClick={() => setActiveTab('stats')}
-                     className="cursor-pointer bg-deep-teal rounded-[3rem] p-5 text-white flex justify-between items-center hover:brightness-110 active:scale-[0.98] transition-all duration-200 pointer-events-auto shadow-lg shadow-deep-teal/20"
-                     style={{ zIndex: 50, position: 'relative' }}
-                   >
-                      <div className="space-y-1">
-                         <p className="text-[10px] font-black tracking-[0.2em] opacity-80 uppercase italic">Sincronía</p>
-                         <h3 className="text-xl font-black leading-none">Ver mi Progreso</h3>
+                    <button 
+                      onClick={() => setActiveTab('stats')} 
+                      className="bg-deep-teal rounded-[3rem] p-6 text-white w-full flex justify-between items-center hover:opacity-90 transition-opacity cursor-pointer"
+                    >
+                      <div className="space-y-1 text-left">
+                        <p className="text-[10px] font-black tracking-[0.2em] opacity-60 uppercase italic">Sincronía</p>
+                        <h3 className="text-3xl font-black leading-none">{balance}%</h3>
                       </div>
-                      <div className="font-mono text-3xl font-black bg-white/10 px-4 py-2 rounded-2xl border border-white/10 flex items-center gap-2">
-                         <span>{balance}%</span>
-                         <ArrowRight size={18} />
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Ver</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Progreso</span>
+                        <span className="text-white text-lg leading-none">→</span>
                       </div>
-                   </div>
+                    </button>
                 </div>
               </motion.div>
 
@@ -1201,26 +1245,19 @@ export default function App() {
             >
               <div className="flex justify-between items-center mb-6">
                  <div className="space-y-0.5">
-                    <h3 className="text-xl font-black text-deep-teal tracking-tighter">Hábitos Rápidos</h3>
+                    <h3 className={`text-xl font-black tracking-tighter ${preferences.darkMode ? 'text-white' : 'text-deep-teal'}`}>Hábitos Rápidos</h3>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Acción Inmediata</p>
                  </div>
-                 <motion.button 
-                   whileHover={{ rotate: 90 }}
-                   onClick={() => setIsHabitConfigOpen(true)}
-                   className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 hover:text-deep-teal transition-colors"
-                 >
-                   <Settings size={20} />
-                 </motion.button>
               </div>
               
               <div className="grid grid-cols-4 gap-4">
                 {[
-                  { type: 'water' as const, icon: <Droplets size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-sky-400' : 'bg-sky-50 text-sky-500', activeColor: 'bg-sky-500 text-white' },
-                  { type: 'food' as const, icon: <Utensils size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-orange-400' : 'bg-orange-50 text-orange-500', activeColor: 'bg-orange-500 text-white' },
-                  { type: 'rest' as const, icon: <Moon size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-purple-400' : 'bg-purple-50 text-purple-500', activeColor: 'bg-purple-500 text-white' },
-                  { type: 'medicine' as const, icon: <Pill size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-indigo-400' : 'bg-indigo-50 text-indigo-500', activeColor: 'bg-indigo-500 text-white' },
-                ].filter(h => enabledHabitTypes.includes(h.type)).map((habit) => {
-                  const isDone = wellness.some(w => w.type === habit.type && w.completed);
+                  { type: 'water' as const, label: 'Agua', icon: <Droplets size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-sky-400' : 'bg-sky-50 text-sky-500', activeColor: 'bg-sky-500 text-white' },
+                  { type: 'food' as const, label: 'Comida', icon: <Utensils size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-orange-400' : 'bg-orange-50 text-orange-500', activeColor: 'bg-orange-500 text-white' },
+                  { type: 'rest' as const, label: 'Relax', icon: <Moon size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-purple-400' : 'bg-purple-50 text-purple-500', activeColor: 'bg-purple-500 text-white' },
+                  { type: 'medicine' as const, label: 'Zen', icon: <Pill size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-indigo-400' : 'bg-indigo-50 text-indigo-500', activeColor: 'bg-indigo-500 text-white' },
+                ].map((habit) => {
+                  const isDone = wellness.some(w => w.type === habit.type && w.group === 'wellness' && w.completed);
                   return (
                     <div key={habit.type} className="flex flex-col items-center gap-2">
                       <motion.button
@@ -1243,11 +1280,75 @@ export default function App() {
                         )}
                       </motion.button>
                       <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">
-                        {habit.type === 'water' ? 'Agua' : habit.type === 'food' ? 'Comida' : habit.type === 'rest' ? 'Relax' : 'Zen'}
+                        {habit.label}
                       </span>
                     </div>
                   );
                 })}
+
+                {/* Custom Habits */}
+                {wellness.filter(w => w.group === 'quickHabit').map((habit) => {
+                  const visual = resolveCustomHabitVisuals(habit.label, habit.completed, preferences.darkMode);
+                  return (
+                    <div key={habit.id} className="flex flex-col items-center gap-2 relative">
+                      <div className="relative">
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => toggleWellness(habit.id)}
+                          className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center transition-all duration-500 shadow-sm relative ${visual.classes}`}
+                        >
+                          {visual.icon}
+                          {habit.completed && (
+                            <motion.div 
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="absolute -top-1 -right-1 w-5 h-5 bg-mint rounded-full flex items-center justify-center border-2 border-white z-10"
+                            >
+                              <Check size={10} className="text-white" strokeWidth={4} />
+                            </motion.div>
+                          )}
+                        </motion.button>
+                        
+                        {/* Small X button to delete */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            SocialService.deleteHabit(habit.id);
+                          }}
+                          className="absolute -top-1 -left-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center border border-white text-white hover:bg-red-600 transition-colors shadow-sm z-20"
+                        >
+                          <X size={10} strokeWidth={3} />
+                        </button>
+                      </div>
+                      <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 text-center line-clamp-1 w-16">
+                        {habit.label}
+                      </span>
+                    </div>
+                  );
+                })}
+
+                {/* Add Custom Quick Habit Plus Button */}
+                <div className="flex flex-col items-center gap-2">
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => {
+                      setNewQuickHabitName('');
+                      setIsAddQuickHabitOpen(true);
+                    }}
+                    className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm border border-dashed ${
+                      preferences.darkMode 
+                        ? 'border-slate-700 bg-slate-800 text-slate-400 hover:text-white' 
+                        : 'border-slate-300 bg-slate-50 text-slate-400 hover:text-deep-teal'
+                    }`}
+                  >
+                    <Plus size={20} />
+                  </motion.button>
+                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">
+                    Nuevo
+                  </span>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -1412,26 +1513,34 @@ export default function App() {
             </div>
 
             {/* Account Settings Compact Card */}
-            <div className={`${theme.card} rounded-[3.5rem] p-6 ${theme.shadow} border ${theme.border} grid grid-cols-2 gap-3`}>
+            <div className={`${theme.card} rounded-[3.5rem] p-6 ${theme.shadow} border ${theme.border} grid grid-cols-3 gap-2`}>
                <button 
                  onClick={() => setIsPreferencesOpen(true)}
-                 className={`p-6 ${theme.itemBg} rounded-3xl flex flex-col items-center gap-3 hover:opacity-80 transition-opacity`}
+                 className={`p-4 ${theme.itemBg} rounded-3xl flex flex-col items-center justify-center gap-2 hover:opacity-80 transition-opacity`}
                >
-                 <Settings size={20} className={theme.textMuted} />
-                 <span className={`text-[9px] font-black uppercase tracking-widest ${theme.textMuted}`}>Configuración</span>
+                 <Settings size={18} className={theme.textMuted} />
+                 <span className={`text-[8px] font-black uppercase tracking-widest ${theme.textMuted} text-center`}>Ajustes</span>
+               </button>
+               <button 
+                 onClick={() => setIsDeleteAccountOpen(true)}
+                 className={`p-4 ${preferences.darkMode ? 'bg-red-950/20' : 'bg-red-50/50'} rounded-3xl flex flex-col items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-allDuration`}
+                 style={{ transition: 'all 0.2s ease' }}
+               >
+                 <Trash2 size={18} className="text-red-400" />
+                 <span className={`text-[8px] font-black uppercase tracking-widest text-red-500 text-center`}>Borrar</span>
                </button>
                <button 
                  onClick={() => signOut(auth)}
-                 className={`p-6 ${preferences.darkMode ? 'bg-rose-950/20' : 'bg-rose-50/50'} rounded-3xl flex flex-col items-center gap-3 hover:bg-rose-100/20 transition-colors`}
+                 className={`p-4 ${preferences.darkMode ? 'bg-rose-950/20' : 'bg-rose-50/50'} rounded-3xl flex flex-col items-center justify-center gap-2 hover:bg-rose-100/20 transition-colors`}
                >
-                 <LogOut size={20} className="text-rose-400" />
-                 <span className={`text-[9px] font-black uppercase tracking-widest text-rose-500`}>Salir</span>
+                 <LogOut size={18} className="text-rose-400" />
+                 <span className={`text-[8px] font-black uppercase tracking-widest text-rose-500 text-center`}>Salir</span>
                </button>
             </div>
           </div>
         );
       case 'circles':
-        return <FriendsView />;
+        return <FriendsView darkMode={preferences.darkMode} />;
       default:
         return null;
     }
@@ -2160,6 +2269,135 @@ export default function App() {
                   className={`w-full p-4 ${theme.itemBg} ${theme.textMuted} font-bold rounded-2xl`}
                 >
                   Cerrar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Account Modal */}
+      <AnimatePresence>
+        {isDeleteAccountOpen && (
+          <div className="fixed inset-0 z-[180] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsDeleteAccountOpen(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={`relative w-full max-w-sm ${theme.modalBg} rounded-[2.5rem] p-8 shadow-2xl z-10`}
+            >
+              <h2 className="text-2xl font-black mb-4 text-red-500 flex items-center gap-2">
+                <Trash2 size={24} />
+                ¿Estás seguro?
+              </h2>
+              <p className={`text-sm ${theme.textMuted} leading-relaxed mb-6`}>
+                Esta acción eliminará tu cuenta y todos tus datos permanentemente. No se puede deshacer.
+              </p>
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={async () => {
+                    try {
+                      await SocialService.deleteAccount();
+                      await signOut(auth);
+                      setIsDeleteAccountOpen(false);
+                    } catch (err) {
+                      console.error("Error deleting account:", err);
+                      await signOut(auth);
+                      setIsDeleteAccountOpen(false);
+                    }
+                  }}
+                  className="w-full p-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 transition-all text-sm uppercase tracking-wider"
+                >
+                  Eliminar todo
+                </button>
+                <button 
+                  onClick={() => setIsDeleteAccountOpen(false)}
+                  className={`w-full p-4 ${theme.itemBg} ${theme.textMuted} font-bold rounded-2xl transition-all text-sm uppercase tracking-wider`}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Create Custom Quick Habit Modal */}
+      <AnimatePresence>
+        {isAddQuickHabitOpen && (
+          <div className="fixed inset-0 z-[180] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddQuickHabitOpen(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={`relative w-full max-w-sm ${theme.modalBg} rounded-[2.5rem] p-8 shadow-2xl z-10`}
+            >
+              <h2 className={`text-2xl font-black mb-4 ${theme.textTitle} flex items-center gap-2`}>
+                <Plus size={24} className="text-deep-teal" />
+                Nuevo Hábito Rápido
+              </h2>
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className={`text-[10px] font-black uppercase tracking-widest ${theme.textMuted} block mb-2`}>
+                    Nombre del hábito
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej. Meditar, Gym, Correr..."
+                    value={newQuickHabitName}
+                    onChange={(e) => setNewQuickHabitName(e.target.value)}
+                    className={`w-full p-4 ${theme.inputBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 focus:ring-deep-teal/20 transition-all ${theme.text}`}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={async () => {
+                    if (!newQuickHabitName.trim()) return;
+                    const name = newQuickHabitName.trim();
+                    const normalized = name.toLowerCase();
+                    let matchedType = 'custom';
+                    if (/agua|hidrat|water/.test(normalized)) matchedType = 'water';
+                    else if (/comida|comer|almuerz|desayun|cena/.test(normalized)) matchedType = 'food';
+                    else if (/dormir|sueño|descanso|relax|noche/.test(normalized)) matchedType = 'rest';
+                    else if (/medicina|vitamina|pastilla|pill/.test(normalized)) matchedType = 'medicine';
+                    else if (/ejercicio|gym|correr|deporte|entrena/.test(normalized)) matchedType = 'exercise';
+                    else if (/meditar|meditación|zen|respira/.test(normalized)) matchedType = 'zen';
+
+                    const newH: any = {
+                      label: name,
+                      type: matchedType,
+                      time: currentTime.getHours().toString().padStart(2, '0') + ':' + currentTime.getMinutes().toString().padStart(2, '0'),
+                      completed: false,
+                      group: 'quickHabit'
+                    };
+                    await SocialService.saveHabit(newH);
+                    setIsAddQuickHabitOpen(false);
+                    setNewQuickHabitName('');
+                  }}
+                  className="w-full p-4 bg-primary text-white font-bold rounded-2xl shadow-lg shadow-primary/20 hover:opacity-90 transition-all text-sm uppercase tracking-wider"
+                >
+                  Guardar
+                </button>
+                <button 
+                  onClick={() => setIsAddQuickHabitOpen(false)}
+                  className={`w-full p-4 ${theme.itemBg} ${theme.textMuted} font-bold rounded-2xl transition-all text-sm uppercase tracking-wider`}
+                >
+                  Cancelar
                 </button>
               </div>
             </motion.div>

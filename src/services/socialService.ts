@@ -312,6 +312,12 @@ export const SocialService = {
     } catch (e) { handleFirestoreError(e, OperationType.WRITE, 'habits'); }
   },
 
+  async deleteHabit(habitId: string) {
+    try {
+      await deleteDoc(doc(db, 'habits', habitId));
+    } catch (e) { handleFirestoreError(e, OperationType.DELETE, 'habits'); }
+  },
+
   subscribeToHabits(callback: (habits: any[]) => void) {
     const user = auth.currentUser;
     if (!user) return () => {};
@@ -426,5 +432,34 @@ export const SocialService = {
     }, (e) => {
       handleFirestoreError(e, OperationType.LIST, 'progressHistory');
     });
+  },
+
+  async deleteAccount() {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const collectionsToDelete = ['tasks', 'habits', 'alarms', 'events', 'achievements', 'progressHistory'];
+    
+    for (const colName of collectionsToDelete) {
+      const q = query(collection(db, colName), where('userId', '==', user.uid));
+      try {
+        const snap = await getDocs(q);
+        for (const docSnap of snap.docs) {
+          await deleteDoc(doc(db, colName, docSnap.id));
+        }
+      } catch (e) {
+        console.error(`Error deleting from ${colName}:`, e);
+      }
+    }
+
+    // Delete user profile doc
+    try {
+      await deleteDoc(doc(db, 'users', user.uid));
+    } catch (e) {
+      console.error('Error deleting user profile:', e);
+    }
+
+    // Delete auth user
+    await user.delete();
   }
 };

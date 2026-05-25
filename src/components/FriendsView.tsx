@@ -123,7 +123,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ darkMode }) => {
   );
 
   return (
-    <div className={`space-y-10 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar ${theme.bg} ${theme.text}`}>
+    <div className={`space-y-10 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar ${darkMode ? 'bg-slate-950' : 'bg-slate-50'} ${theme.text}`}>
       <header className="flex justify-between items-end">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -198,7 +198,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ darkMode }) => {
             })}
           </div>
         ) : (
-          <div className={`${theme.itemBg} rounded-[3.5rem] py-24 px-12 text-center space-y-6 border border-dashed ${theme.border}`}>
+          <div className={`${darkMode ? 'bg-slate-800' : 'bg-slate-50'} rounded-[3.5rem] py-24 px-12 text-center space-y-6 border border-dashed ${theme.border}`}>
             <div className={`w-20 h-20 ${theme.card} rounded-[2rem] flex items-center justify-center mx-auto shadow-sm`}>
               <Users size={32} className={theme.textMuted} />
             </div>
