@@ -71,7 +71,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword 
 } from 'firebase/auth';
-import { auth } from './lib/firebase';
+import { getDocs, deleteDoc, doc, collection, query, where } from 'firebase/firestore';
+import { auth, db } from './lib/firebase';
 import { SocialService, UserProfile } from './services/socialService';
 import { FriendsView } from './components/FriendsView';
 
@@ -311,6 +312,21 @@ export default function App() {
     if (isAuthenticated && user) {
       // Initialize profile if it doesn't exist
       SocialService.syncProfile({});
+
+      // Initialize default quick habits if not done yet
+      const initKey = `quick_habits_init_${user.uid}`;
+      if (!localStorage.getItem(initKey)) {
+        const defaults = [
+          { label: 'Agua', type: 'water', completed: false, group: 'quickHabit' },
+          { label: 'Comida', type: 'food', completed: false, group: 'quickHabit' },
+          { label: 'Relax', type: 'rest', completed: false, group: 'quickHabit' },
+          { label: 'Zen', type: 'medicine', completed: false, group: 'quickHabit' },
+        ];
+        defaults.forEach(h => {
+          SocialService.saveHabit(h);
+        });
+        localStorage.setItem(initKey, 'true');
+      }
 
       // Subscribe to Profile
       unsubscribeProfile = SocialService.subscribeToProfile((profile) => {
@@ -619,6 +635,7 @@ export default function App() {
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [isAddQuickHabitOpen, setIsAddQuickHabitOpen] = useState(false);
   const [newQuickHabitName, setNewQuickHabitName] = useState('');
 
@@ -783,6 +800,51 @@ export default function App() {
       SocialService.saveTask({ ...task, completed: !task.completed });
     }
     setTimeout(refreshAIThought, 1000); 
+  };
+
+  const handleDeleteAccount = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    
+    try {
+      setIsDeletingAccount(true);
+      console.log("Iniciando proceso de eliminación de cuenta para el usuario:", user.uid);
+      
+      // 1. Borrar todas las colecciones del usuario en Firestore
+      const collections = ['tasks', 'habits', 'alarms', 'events', 'achievements'];
+      console.log("Paso 1: Detectando y eliminando colecciones de Firestore del usuario:", collections);
+      for (const col of collections) {
+        console.log(`Buscando documentos en la colección '${col}'...`);
+        const q = query(collection(db, col), where('userId', '==', user.uid));
+        const snap = await getDocs(q);
+        console.log(`Colección '${col}': Encontrados ${snap.size} documentos para eliminar.`);
+        for (const document of snap.docs) {
+          await deleteDoc(doc(db, col, document.id));
+        }
+      }
+      
+      // 2. Borrar documento del usuario
+      console.log("Paso 2: Eliminando documento de usuario de Firestore ('users')");
+      await deleteDoc(doc(db, 'users', user.uid));
+      
+      // 3. Eliminar cuenta de Firebase Auth
+      console.log("Paso 3: Eliminando usuario de Firebase Authentication");
+      await user.delete();
+      
+      // 4. Sign out
+      console.log("Paso 4: Cerrando sesión y limpiando estado");
+      await signOut(auth);
+      
+    } catch (error: any) {
+      console.error('Error completo detectado al eliminar cuenta:', error);
+      if (error.code === 'auth/requires-recent-login') {
+        alert("Por seguridad, cierra sesión, vuelve a iniciar sesión con Google y luego intenta eliminar tu cuenta nuevamente.");
+      } else {
+        alert(`Ocurrió un error al intentar eliminar la cuenta: ${error.message || error}`);
+      }
+    } finally {
+      setIsDeletingAccount(false);
+    }
   };
 
   const toggleWellness = (id: string) => {
@@ -1251,42 +1313,7 @@ export default function App() {
               </div>
               
               <div className="grid grid-cols-4 gap-4">
-                {[
-                  { type: 'water' as const, label: 'Agua', icon: <Droplets size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-sky-400' : 'bg-sky-50 text-sky-500', activeColor: 'bg-sky-500 text-white' },
-                  { type: 'food' as const, label: 'Comida', icon: <Utensils size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-orange-400' : 'bg-orange-50 text-orange-500', activeColor: 'bg-orange-500 text-white' },
-                  { type: 'rest' as const, label: 'Relax', icon: <Moon size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-purple-400' : 'bg-purple-50 text-purple-500', activeColor: 'bg-purple-500 text-white' },
-                  { type: 'medicine' as const, label: 'Zen', icon: <Pill size={24} />, color: preferences.darkMode ? 'bg-slate-800 text-indigo-400' : 'bg-indigo-50 text-indigo-500', activeColor: 'bg-indigo-500 text-white' },
-                ].map((habit) => {
-                  const isDone = wellness.some(w => w.type === habit.type && w.group === 'wellness' && w.completed);
-                  return (
-                    <div key={habit.type} className="flex flex-col items-center gap-2">
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9, rotate: [0, -10, 10, 0] }}
-                        onClick={() => handleQuickHabitToggle(habit.type)}
-                        className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center transition-all duration-500 shadow-sm relative ${
-                          isDone ? habit.activeColor : habit.color + ' border border-transparent'
-                        }`}
-                      >
-                        {habit.icon}
-                        {isDone && (
-                          <motion.div 
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="absolute -top-1 -right-1 w-5 h-5 bg-mint rounded-full flex items-center justify-center border-2 border-white"
-                          >
-                            <Check size={10} className="text-white" strokeWidth={4} />
-                          </motion.div>
-                        )}
-                      </motion.button>
-                      <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">
-                        {habit.label}
-                      </span>
-                    </div>
-                  );
-                })}
-
-                {/* Custom Habits */}
+                {/* Unified Habits (Defaults & Customs) */}
                 {wellness.filter(w => w.group === 'quickHabit').map((habit) => {
                   const visual = resolveCustomHabitVisuals(habit.label, habit.completed, preferences.darkMode);
                   return (
@@ -2002,31 +2029,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Main AI Interaction Button - Refined Glass Style */}
-      <div className="fixed right-4 top-1/2 -translate-y-1/2 z-[100] flex flex-col items-center">
-          <motion.button
-            whileHover={{ scale: 1.1, x: -4 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setIsAiConsultationOpen(true)}
-            className={`w-14 h-14 rounded-[1.8rem] ${preferences.darkMode ? 'bg-slate-900/50' : 'bg-white/50'} backdrop-blur-xl border ${theme.border} text-sunset-wine shadow-[0_8px_32px_rgba(0,0,0,0.06)] flex items-center justify-center group relative`}
-          >
-          <Sparkles size={26} className="opacity-70 transition-transform group-hover:rotate-12 group-hover:opacity-100" />
-          
-          {/* Subtle slow pulse animation */}
-          <motion.div 
-            animate={{ 
-              scale: [1, 1.2, 1],
-              opacity: [0.15, 0, 0.15],
-            }}
-            transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-            className="absolute inset-0 bg-sunset-orange rounded-[1.8rem] -z-10"
-          />
-          
-          <div className="absolute right-full mr-4 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/50 shadow-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none translate-x-2 group-hover:translate-x-0">
-            <span className={`text-[9px] font-black ${preferences.darkMode ? 'text-slate-200' : 'text-sunset-wine'} uppercase tracking-[0.2em]`}>Consultar IA</span>
-          </div>
-        </motion.button>
-      </div>
+
 
       {/* Notifications Modal */}
       <AnimatePresence>
@@ -2302,24 +2305,26 @@ export default function App() {
               </p>
               <div className="flex flex-col gap-3">
                 <button 
+                  disabled={isDeletingAccount}
                   onClick={async () => {
-                    try {
-                      await SocialService.deleteAccount();
-                      await signOut(auth);
-                      setIsDeleteAccountOpen(false);
-                    } catch (err) {
-                      console.error("Error deleting account:", err);
-                      await signOut(auth);
-                      setIsDeleteAccountOpen(false);
-                    }
+                    await handleDeleteAccount();
+                    setIsDeleteAccountOpen(false);
                   }}
-                  className="w-full p-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 transition-all text-sm uppercase tracking-wider"
+                  className="w-full p-4 bg-red-600 hover:bg-red-700 disabled:bg-red-800/80 disabled:cursor-not-allowed text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 transition-all text-sm uppercase tracking-wider flex items-center justify-center gap-2"
                 >
-                  Eliminar todo
+                  {isDeletingAccount ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Eliminando...</span>
+                    </>
+                  ) : (
+                    'Eliminar todo'
+                  )}
                 </button>
                 <button 
+                  disabled={isDeletingAccount}
                   onClick={() => setIsDeleteAccountOpen(false)}
-                  className={`w-full p-4 ${theme.itemBg} ${theme.textMuted} font-bold rounded-2xl transition-all text-sm uppercase tracking-wider`}
+                  className={`w-full p-4 ${theme.itemBg} ${theme.textMuted} font-bold rounded-2xl transition-all text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   Cancelar
                 </button>

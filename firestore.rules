@@ -37,6 +37,7 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isValidUser(incoming());
       allow update: if isOwner(userId) && isValidUser(incoming()) && 
                     incoming().diff(existing()).affectedKeys().hasOnly(['name', 'photoURL', 'mascotName', 'streak', 'balance', 'lastActive', 'kairosId']);
+      allow delete: if isOwner(userId);
       
       function isValidUser(data) {
         return data.uid == request.auth.uid &&
