@@ -545,35 +545,6 @@ export default function App() {
       SocialService.saveAlarm({ ...alarm, enabled: !alarm.enabled });
     }
   };
-  const handleQuickHabitToggle = (type: WellnessReminder['type']) => {
-    // Find the first uncompleted habit of this type
-    const habit = wellness.find(w => w.type === type && !w.completed);
-    
-    if (habit) {
-      toggleWellness(habit.id);
-    } else {
-      // Create a new one directly if none exists or if all are completed
-      const defaultLabels: Record<string, string> = {
-        water: 'Beber agua',
-        food: 'Almuerzo saludable',
-        rest: 'Descanso visual',
-        medicine: 'Vitaminas',
-        zen: 'Meditación'
-      };
-      const label = defaultLabels[type] || 'Hábito rápido';
-      
-      const newH: any = {
-        id: 'quick_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-        type,
-        label,
-        time: currentTime.getHours().toString().padStart(2, '0') + ':' + currentTime.getMinutes().toString().padStart(2, '0'),
-        completed: true,
-        group: 'wellness'
-      };
-      SocialService.saveHabit({ ...newH, category: 'wellness' });
-    }
-    setTimeout(refreshAIThought, 500);
-  };
 
   const [preferences, setPreferences] = useState(() => {
     const saved = localStorage.getItem('kairos_preferences');
@@ -888,9 +859,9 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard':
         return (
-          <div className="space-y-6 pb-40">
+          <div className="space-y-6 pb-40 md:pb-12">
             {/* Immersive Header Card */}
-            <section className="px-6 pt-6">
+            <section className="px-6 md:px-8 pt-6 md:pt-8">
               <header className="mb-8 space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-sunset-orange animate-pulse" />
@@ -951,7 +922,7 @@ export default function App() {
             </section>
 
             {/* Bento Grid Content */}
-            <section className="px-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <section className="px-6 md:px-8 grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Main Mascot Card */}
               <motion.div 
                 initial={{ opacity: 0, x: -20 }}
@@ -1049,7 +1020,7 @@ export default function App() {
         );
       case 'tasks':
         return (
-          <div className="space-y-8 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar">
+          <div className="space-y-8 pb-40 md:pb-12 px-6 md:px-8 pt-8 md:pt-12 overflow-y-auto md:overflow-visible max-h-[85vh] md:max-h-none no-scrollbar">
             <header className="flex justify-between items-end">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -1134,7 +1105,7 @@ export default function App() {
         );
       case 'wellness':
         return (
-          <div className="space-y-8 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar">
+          <div className="space-y-8 pb-40 md:pb-12 px-6 md:px-8 pt-8 md:pt-12 overflow-y-auto md:overflow-visible max-h-[85vh] md:max-h-none no-scrollbar">
             <header className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-mint animate-pulse" />
@@ -1182,7 +1153,7 @@ export default function App() {
         );
       case 'calendar':
         return (
-          <div className="space-y-8 pb-32 px-8 pt-12">
+          <div className="space-y-8 pb-32 md:pb-12 px-6 md:px-8 pt-8 md:pt-12">
             <header className="flex justify-between items-center">
               <div className="space-y-1">
                 <h2 className="text-4xl font-black text-sunset-wine tracking-tight">Agenda</h2>
@@ -1240,7 +1211,7 @@ export default function App() {
         );
       case 'alarms':
         return (
-          <div className="space-y-8 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar">
+          <div className="space-y-8 pb-40 md:pb-12 px-6 md:px-8 pt-8 md:pt-12 overflow-y-auto md:overflow-visible max-h-[85vh] md:max-h-none no-scrollbar">
             <header className="flex justify-between items-end">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -1382,7 +1353,7 @@ export default function App() {
         );
       case 'stats':
         return (
-          <div className="space-y-8 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar">
+          <div className="space-y-8 pb-40 md:pb-12 px-6 md:px-8 pt-8 md:pt-12 overflow-y-auto md:overflow-visible max-h-[85vh] md:max-h-none no-scrollbar">
             {/* Organic User Profile Header */}
             <div className={`${theme.card} rounded-[4rem] p-10 ${theme.shadow} border ${theme.border} flex flex-col items-center text-center gap-6 relative overflow-hidden`}>
                <div className="absolute top-0 inset-x-0 h-24 sunset-gradient opacity-10" />
@@ -1605,7 +1576,7 @@ export default function App() {
 
   if (isLoadingAuth) {
     return (
-      <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex items-center justify-center p-8 text-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8 text-center">
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -1647,7 +1618,7 @@ export default function App() {
   }
 
   return (
-    <div className={`max-w-md mx-auto min-h-screen relative overflow-hidden transition-colors duration-300 ${theme.bg} ${theme.text}`}>
+    <div className={`min-h-screen relative overflow-x-hidden transition-colors duration-300 ${theme.bg} ${theme.text}`}>
       {/* Background Decorative Elements */}
       <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
       <div className="absolute bottom-[-5%] left-[-5%] w-48 h-48 bg-wellness/5 rounded-full blur-3xl" />
@@ -2964,26 +2935,87 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <main className="relative z-10">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-          >
-            {renderContent()}
-          </motion.div>
-        </AnimatePresence>
+      <main className="relative z-10 md:ml-64">
+        <div className="max-w-5xl mx-auto">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+            >
+              {renderContent()}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </main>
 
-      {/* Integrated Bottom Navigation - Dynamic and Organic */}
-      <footer className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-4">
+      {/* ── SIDEBAR DESKTOP ──────────────────────────────────── */}
+      <aside className={`hidden md:flex fixed left-0 top-0 h-screen w-64 z-50 flex-col justify-between py-8 px-4 ${preferences.darkMode ? 'bg-slate-900/95 border-r border-white/5' : 'bg-deep-teal/95 border-r border-white/5'} backdrop-blur-2xl shadow-2xl`}>
+        <div className="px-4 space-y-8">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 sunset-gradient rounded-2xl flex items-center justify-center shadow-lg">
+              <Clock size={20} className="text-white" />
+            </div>
+            <span className="text-xl font-black italic tracking-tight text-white">Kairos</span>
+          </div>
+          <nav className="space-y-1">
+            {[
+              { id: 'tasks', icon: <CheckSquare size={20} />, label: 'Metas' },
+              { id: 'dashboard', icon: <LayoutDashboard size={20} />, label: 'Centro' },
+              { id: 'alarms', icon: <AlarmClock size={20} />, label: 'Alarmas' },
+              { id: 'circles', icon: <Users size={20} />, label: 'Social' },
+              { id: 'stats', icon: <User size={20} />, label: 'Tú' },
+            ].map((item) => {
+              const isActive = activeTab === item.id;
+              return (
+                <motion.button
+                  key={item.id}
+                  whileHover={{ x: 4 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 ${
+                    isActive
+                      ? 'bg-white text-deep-teal shadow-lg font-black'
+                      : 'text-white/50 hover:text-white/80 hover:bg-white/5 font-bold'
+                  }`}
+                >
+                  {item.icon}
+                  <span className="text-sm uppercase tracking-widest">{item.label}</span>
+                  {isActive && <ChevronRight size={14} className="ml-auto opacity-40" />}
+                </motion.button>
+              );
+            })}
+          </nav>
+        </div>
+        <div className="px-4 space-y-3">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setIsChatOpen(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-[#ff6b6b] to-sunset-orange text-white shadow-lg"
+          >
+            <Sparkles size={18} className="animate-pulse" />
+            <span className="text-sm font-black uppercase tracking-widest">Kairo IA</span>
+          </motion.button>
+          <button
+            onClick={() => setIsProfileOpen(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white/5 transition-colors"
+          >
+            <img src={userProfile.photo} alt="P" className="w-8 h-8 rounded-xl object-cover border border-white/20" />
+            <div className="text-left min-w-0">
+              <p className="text-white text-xs font-black truncate">{userProfile.name.split(' ')[0]}</p>
+              <p className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Racha #{streak}</p>
+            </div>
+          </button>
+        </div>
+      </aside>
+
+      {/* ── NAV INFERIOR MÓVIL ───────────────────────────────── */}
+      <footer className="md:hidden fixed bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-4">
         <nav className={`${preferences.darkMode ? 'bg-slate-900/90' : 'bg-deep-teal/90'} backdrop-blur-2xl p-2.5 rounded-[3.5rem] flex items-center justify-around gap-1 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.4)] border border-white/5 relative overflow-hidden`}>
-          {/* Subtle glow behind the whole nav */}
           <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-32 h-32 bg-mint/5 blur-3xl pointer-events-none" />
-          
           {[
             { id: 'tasks', icon: <CheckSquare size={22} />, label: 'Metas' },
             { id: 'dashboard', icon: <LayoutDashboard size={22} />, label: 'Centro' },
@@ -2999,18 +3031,15 @@ export default function App() {
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setActiveTab(item.id)}
                 className={`relative flex items-center justify-center gap-2 h-14 rounded-full transition-all duration-500 overflow-hidden ${
-                  isActive 
-                    ? `${theme.card} ${preferences.darkMode ? 'text-white' : 'text-deep-teal'} px-6 flex-grow shadow-lg z-10` 
+                  isActive
+                    ? `${theme.card} ${preferences.darkMode ? 'text-white' : 'text-deep-teal'} px-6 flex-grow shadow-lg z-10`
                     : 'text-white/30 hover:text-white/60 px-4'
                 }`}
               >
-                <div className="relative z-10">
-                  {item.icon}
-                </div>
-                
+                <div className="relative z-10">{item.icon}</div>
                 <AnimatePresence mode="wait">
                   {isActive && (
-                    <motion.span 
+                    <motion.span
                       initial={{ opacity: 0, x: -5 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 5 }}
@@ -3020,13 +3049,11 @@ export default function App() {
                     </motion.span>
                   )}
                 </AnimatePresence>
-
-                {/* Internal active swell effect */}
                 {isActive && (
-                  <motion.div 
+                  <motion.div
                     layoutId="active-bg"
                     className="absolute inset-0 bg-white"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
                   />
                 )}
               </motion.button>
@@ -3043,7 +3070,7 @@ export default function App() {
           whileHover={{ scale: 1.1, rotate: 5 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setIsChatOpen(true)}
-          className="fixed bottom-28 right-6 md:right-[calc(50%-13rem)] z-[100] w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#ff6b6b] to-sunset-orange text-white shadow-lg flex items-center justify-center cursor-pointer border border-white/20"
+          className="fixed bottom-28 right-6 md:hidden z-[100] w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#ff6b6b] to-sunset-orange text-white shadow-lg flex items-center justify-center cursor-pointer border border-white/20"
           id="kairo-chat-toggle"
         >
           <Sparkles size={24} className="animate-pulse" />
