@@ -269,6 +269,7 @@ export default function App() {
   const [wellness, setWellness] = useState<WellnessReminder[]>([]);
   const [routine, setRoutine] = useState<RoutineItem[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [deletedHabitIds, setDeletedHabitIds] = useState<string[]>([]);
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [achievements, setAchievements] = useState<any[]>([]);
   const [progressHistory, setProgressHistory] = useState<{ date: string; value: number }[]>([]);
@@ -313,26 +314,33 @@ export default function App() {
       // Initialize profile if it doesn't exist
       SocialService.syncProfile({});
 
-      // Initialize default quick habits if not done yet
-      const initKey = `quick_habits_init_${user.uid}`;
-      if (!localStorage.getItem(initKey)) {
-        const defaults = [
-          { label: 'Agua', type: 'water', completed: false, group: 'quickHabit' },
-          { label: 'Comida', type: 'food', completed: false, group: 'quickHabit' },
-          { label: 'Relax', type: 'rest', completed: false, group: 'quickHabit' },
-          { label: 'Zen', type: 'medicine', completed: false, group: 'quickHabit' },
-        ];
-        defaults.forEach(h => {
-          SocialService.saveHabit(h);
-        });
-        localStorage.setItem(initKey, 'true');
-      }
-
       // Subscribe to Profile
-      unsubscribeProfile = SocialService.subscribeToProfile((profile) => {
+      unsubscribeProfile = SocialService.subscribeToProfile(async (profile) => {
         if (profile) {
           setStreak(profile.streak || 0);
           setMascotName(profile.mascotName || 'Kairo');
+
+          // Initialize default quick habits if not done yet
+          if (!profile.habitsInitialized) {
+            try {
+              const habitsQuery = query(collection(db, 'habits'), where('userId', '==', user.uid));
+              const habitsSnap = await getDocs(habitsQuery);
+              if (habitsSnap.empty) {
+                const defaults = [
+                  { label: 'Agua', type: 'water', completed: false, group: 'quickHabit' },
+                  { label: 'Comida', type: 'food', completed: false, group: 'quickHabit' },
+                  { label: 'Relax', type: 'rest', completed: false, group: 'quickHabit' },
+                  { label: 'Zen', type: 'medicine', completed: false, group: 'quickHabit' },
+                ];
+                for (const h of defaults) {
+                  await SocialService.saveHabit(h);
+                }
+              }
+              await SocialService.syncProfile({ habitsInitialized: true });
+            } catch (err) {
+              console.error("Error logging or initializing default habits:", err);
+            }
+          }
         }
       });
 
@@ -859,7 +867,7 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard':
         return (
-          <div className="space-y-6 pb-40 md:pb-12">
+          <div className="space-y-6 pb-36 md:pb-12">
             {/* Immersive Header Card */}
             <section className="px-6 md:px-8 pt-6 md:pt-8">
               <header className="mb-8 space-y-1">
@@ -1020,7 +1028,7 @@ export default function App() {
         );
       case 'tasks':
         return (
-          <div className="space-y-8 pb-40 md:pb-12 px-6 md:px-8 pt-8 md:pt-12 overflow-y-auto md:overflow-visible max-h-[85vh] md:max-h-none no-scrollbar">
+          <div className="space-y-8 pb-36 md:pb-12 px-6 md:px-8 pt-8 md:pt-12 no-scrollbar">
             <header className="flex justify-between items-end">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -1101,11 +1109,124 @@ export default function App() {
                 </motion.div>
               ))}
             </div>
+
+            {/* Quick Habits Section */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className={`${theme.card} rounded-[3.5rem] p-8 shadow-xl ${theme.shadow} border ${theme.border}`}
+            >
+              <div className="flex justify-between items-center mb-6">
+                 <div className="space-y-0.5">
+                    <h3 className={`text-xl font-black tracking-tighter ${preferences.darkMode ? 'text-white' : 'text-deep-teal'}`}>Hábitos Rápidos</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Acción Inmediata</p>
+                 </div>
+              </div>
+              
+              <div className="grid grid-cols-4 gap-4">
+                {/* Unified Habits (Defaults & Customs) */}
+                {(() => {
+                  const getMs = (h: any) => {
+                    if (!h.createdAt) return Date.now();
+                    if (typeof h.createdAt.toMillis === 'function') return h.createdAt.toMillis();
+                    if (typeof h.createdAt.toDate === 'function') return h.createdAt.toDate().getTime();
+                    if (h.createdAt.seconds) return h.createdAt.seconds * 1000 + Math.floor(h.createdAt.nanoseconds / 1000000);
+                    if (h.createdAt instanceof Date) return h.createdAt.getTime();
+                    if (typeof h.createdAt === 'string') return new Date(h.createdAt).getTime();
+                    if (typeof h.createdAt === 'number') return h.createdAt;
+                    return 0;
+                  };
+
+                  const quickHabits = wellness.filter(w => w.group === 'quickHabit' && !deletedHabitIds.includes(w.id));
+                  const sortedQuickHabits = [...quickHabits].sort((a, b) => getMs(b) - getMs(a));
+                  const uniqueQuickHabitsMap = new Map<string, any>();
+                  
+                  for (const h of sortedQuickHabits) {
+                    const uniqueKey = h.type === 'custom' ? `custom-${h.label.toLowerCase().trim()}` : h.type;
+                    if (!uniqueQuickHabitsMap.has(uniqueKey)) {
+                      uniqueQuickHabitsMap.set(uniqueKey, h);
+                    }
+                  }
+
+                  const uniqueQuickHabits = Array.from(uniqueQuickHabitsMap.values());
+                  const typeOrder = ['water', 'food', 'rest', 'medicine', 'exercise', 'zen', 'custom'];
+                  const getOrderIndex = (type: string) => {
+                    const idx = typeOrder.indexOf(type);
+                    return idx === -1 ? 999 : idx;
+                  };
+                  uniqueQuickHabits.sort((a, b) => getOrderIndex(a.type) - getOrderIndex(b.type));
+
+                  return uniqueQuickHabits.map((habit) => {
+                    const visual = resolveCustomHabitVisuals(habit.label, habit.completed, preferences.darkMode);
+                    return (
+                      <div key={habit.id} className="flex flex-col items-center gap-2 relative">
+                        <div className="relative">
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => toggleWellness(habit.id)}
+                            className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center transition-all duration-500 shadow-sm relative ${visual.classes}`}
+                          >
+                            {visual.icon}
+                            {habit.completed && (
+                              <motion.div 
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                className="absolute -top-1 -right-1 w-5 h-5 bg-mint rounded-full flex items-center justify-center border-2 border-white z-10"
+                              >
+                                <Check size={10} className="text-white" strokeWidth={4} />
+                              </motion.div>
+                            )}
+                          </motion.button>
+                          
+                          {/* Small X button to delete */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeletedHabitIds((prev) => [...prev, habit.id]);
+                              SocialService.deleteHabit(habit.id);
+                            }}
+                            className="absolute -top-1 -left-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center border border-white text-white hover:bg-red-600 transition-colors shadow-sm z-20"
+                          >
+                            <X size={10} strokeWidth={3} />
+                          </button>
+                        </div>
+                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 text-center line-clamp-1 w-16">
+                          {habit.label}
+                        </span>
+                      </div>
+                    );
+                  });
+                })()}
+
+                {/* Add Custom Quick Habit Plus Button */}
+                <div className="flex flex-col items-center gap-2">
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => {
+                      setNewQuickHabitName('');
+                      setIsAddQuickHabitOpen(true);
+                    }}
+                    className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm border border-dashed ${
+                      preferences.darkMode 
+                        ? 'border-slate-700 bg-slate-800 text-slate-400 hover:text-white' 
+                        : 'border-slate-300 bg-slate-50 text-slate-400 hover:text-deep-teal'
+                    }`}
+                  >
+                    <Plus size={20} />
+                  </motion.button>
+                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">
+                    Nuevo
+                  </span>
+                </div>
+              </div>
+            </motion.div>
           </div>
         );
       case 'wellness':
         return (
-          <div className="space-y-8 pb-40 md:pb-12 px-6 md:px-8 pt-8 md:pt-12 overflow-y-auto md:overflow-visible max-h-[85vh] md:max-h-none no-scrollbar">
+          <div className="space-y-8 pb-36 md:pb-12 px-6 md:px-8 pt-8 md:pt-12 no-scrollbar">
             <header className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-mint animate-pulse" />
@@ -1153,7 +1274,7 @@ export default function App() {
         );
       case 'calendar':
         return (
-          <div className="space-y-8 pb-32 md:pb-12 px-6 md:px-8 pt-8 md:pt-12">
+          <div className="space-y-8 pb-36 md:pb-12 px-6 md:px-8 pt-8 md:pt-12">
             <header className="flex justify-between items-center">
               <div className="space-y-1">
                 <h2 className="text-4xl font-black text-sunset-wine tracking-tight">Agenda</h2>
@@ -1211,7 +1332,7 @@ export default function App() {
         );
       case 'alarms':
         return (
-          <div className="space-y-8 pb-40 md:pb-12 px-6 md:px-8 pt-8 md:pt-12 overflow-y-auto md:overflow-visible max-h-[85vh] md:max-h-none no-scrollbar">
+          <div className="space-y-8 pb-36 md:pb-12 px-6 md:px-8 pt-8 md:pt-12 no-scrollbar">
             <header className="flex justify-between items-end">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -1269,91 +1390,11 @@ export default function App() {
                 </div>
               )}
             </div>
-
-            {/* Quick Habits Section */}
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className={`${theme.card} rounded-[3.5rem] p-8 shadow-xl ${theme.shadow} border ${theme.border}`}
-            >
-              <div className="flex justify-between items-center mb-6">
-                 <div className="space-y-0.5">
-                    <h3 className={`text-xl font-black tracking-tighter ${preferences.darkMode ? 'text-white' : 'text-deep-teal'}`}>Hábitos Rápidos</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Acción Inmediata</p>
-                 </div>
-              </div>
-              
-              <div className="grid grid-cols-4 gap-4">
-                {/* Unified Habits (Defaults & Customs) */}
-                {wellness.filter(w => w.group === 'quickHabit').map((habit) => {
-                  const visual = resolveCustomHabitVisuals(habit.label, habit.completed, preferences.darkMode);
-                  return (
-                    <div key={habit.id} className="flex flex-col items-center gap-2 relative">
-                      <div className="relative">
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => toggleWellness(habit.id)}
-                          className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center transition-all duration-500 shadow-sm relative ${visual.classes}`}
-                        >
-                          {visual.icon}
-                          {habit.completed && (
-                            <motion.div 
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              className="absolute -top-1 -right-1 w-5 h-5 bg-mint rounded-full flex items-center justify-center border-2 border-white z-10"
-                            >
-                              <Check size={10} className="text-white" strokeWidth={4} />
-                            </motion.div>
-                          )}
-                        </motion.button>
-                        
-                        {/* Small X button to delete */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            SocialService.deleteHabit(habit.id);
-                          }}
-                          className="absolute -top-1 -left-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center border border-white text-white hover:bg-red-600 transition-colors shadow-sm z-20"
-                        >
-                          <X size={10} strokeWidth={3} />
-                        </button>
-                      </div>
-                      <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 text-center line-clamp-1 w-16">
-                        {habit.label}
-                      </span>
-                    </div>
-                  );
-                })}
-
-                {/* Add Custom Quick Habit Plus Button */}
-                <div className="flex flex-col items-center gap-2">
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => {
-                      setNewQuickHabitName('');
-                      setIsAddQuickHabitOpen(true);
-                    }}
-                    className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm border border-dashed ${
-                      preferences.darkMode 
-                        ? 'border-slate-700 bg-slate-800 text-slate-400 hover:text-white' 
-                        : 'border-slate-300 bg-slate-50 text-slate-400 hover:text-deep-teal'
-                    }`}
-                  >
-                    <Plus size={20} />
-                  </motion.button>
-                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">
-                    Nuevo
-                  </span>
-                </div>
-              </div>
-            </motion.div>
           </div>
         );
       case 'stats':
         return (
-          <div className="space-y-8 pb-40 md:pb-12 px-6 md:px-8 pt-8 md:pt-12 overflow-y-auto md:overflow-visible max-h-[85vh] md:max-h-none no-scrollbar">
+          <div className="space-y-8 pb-36 md:pb-12 px-6 md:px-8 pt-8 md:pt-12 no-scrollbar">
             {/* Organic User Profile Header */}
             <div className={`${theme.card} rounded-[4rem] p-10 ${theme.shadow} border ${theme.border} flex flex-col items-center text-center gap-6 relative overflow-hidden`}>
                <div className="absolute top-0 inset-x-0 h-24 sunset-gradient opacity-10" />
@@ -3013,9 +3054,12 @@ export default function App() {
       </aside>
 
       {/* ── NAV INFERIOR MÓVIL ───────────────────────────────── */}
-      <footer className="md:hidden fixed bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-4">
-        <nav className={`${preferences.darkMode ? 'bg-slate-900/90' : 'bg-deep-teal/90'} backdrop-blur-2xl p-2.5 rounded-[3.5rem] flex items-center justify-around gap-1 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.4)] border border-white/5 relative overflow-hidden`}>
-          <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-32 h-32 bg-mint/5 blur-3xl pointer-events-none" />
+      {/* Barra de navegación inferior - solo móvil */}
+      <nav
+        style={{ position: 'fixed', bottom: '8px', left: '50%', transform: 'translateX(-50%)', zIndex: 50, width: '100%', maxWidth: '420px', padding: '0 16px' }}
+        className="md:hidden"
+      >
+        <div className={`${preferences.darkMode ? 'bg-slate-900/95' : 'bg-deep-teal/95'} backdrop-blur-2xl p-2.5 rounded-[3.5rem] flex items-center justify-around gap-1 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.4)] border border-white/5`}>
           {[
             { id: 'tasks', icon: <CheckSquare size={22} />, label: 'Metas' },
             { id: 'dashboard', icon: <LayoutDashboard size={22} />, label: 'Centro' },
@@ -3051,7 +3095,7 @@ export default function App() {
                 </AnimatePresence>
                 {isActive && (
                   <motion.div
-                    layoutId="active-bg"
+                    layoutId="active-bg-mobile"
                     className="absolute inset-0 bg-white"
                     transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
                   />
@@ -3059,8 +3103,8 @@ export default function App() {
               </motion.button>
             );
           })}
-        </nav>
-      </footer>
+        </div>
+      </nav>
 
       {/* Floating Kairo AI Chat Button */}
       {!isChatOpen && (
@@ -3070,7 +3114,7 @@ export default function App() {
           whileHover={{ scale: 1.1, rotate: 5 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setIsChatOpen(true)}
-          className="fixed bottom-28 right-6 md:hidden z-[100] w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#ff6b6b] to-sunset-orange text-white shadow-lg flex items-center justify-center cursor-pointer border border-white/20"
+          className="fixed bottom-28 right-4 md:hidden z-[100] w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#ff6b6b] to-sunset-orange text-white shadow-lg flex items-center justify-center cursor-pointer border border-white/20"
           id="kairo-chat-toggle"
         >
           <Sparkles size={24} className="animate-pulse" />

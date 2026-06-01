@@ -123,7 +123,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ darkMode }) => {
   );
 
   return (
-    <div className={`space-y-10 pb-40 px-6 pt-12 overflow-y-auto max-h-[85vh] no-scrollbar ${darkMode ? 'bg-slate-950' : 'bg-slate-50'} ${theme.text}`}>
+    <div className={`space-y-10 pb-36 md:pb-12 px-6 md:px-8 pt-8 md:pt-12 no-scrollbar ${darkMode ? 'bg-slate-950' : 'bg-slate-50'} ${theme.text}`}>
       <header className="flex justify-between items-end">
         <div className="space-y-1">
           <div className="flex items-center gap-2">

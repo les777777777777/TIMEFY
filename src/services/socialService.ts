@@ -65,6 +65,7 @@ export interface UserProfile {
   streak: number;
   balance: number;
   lastActive: any;
+  habitsInitialized?: boolean;
 }
 
 export interface Interaction {
@@ -106,6 +107,7 @@ export const SocialService = {
         streak: existingData.streak ?? profile.streak ?? 0,
         balance: existingData.balance ?? profile.balance ?? 0,
         lastActive: serverTimestamp(),
+        habitsInitialized: existingData.habitsInitialized ?? profile.habitsInitialized ?? false,
       };
 
       await setDoc(doc(db, 'users', user.uid), newData, { merge: true });
@@ -113,43 +115,51 @@ export const SocialService = {
       if (isNewUser && !isInitializingDefaults) {
         isInitializingDefaults = true;
 
-        // Tareas predeterminadas
-        const defaultTasks = [
-          { title: "Terminar proyecto pendiente", category: "work", completed: false },
-          { title: "Hacer ejercicio 30 min", category: "wellness", completed: false },
-          { title: "Leer 20 minutos", category: "personal", completed: false }
-        ];
-        for (const t of defaultTasks) {
-          await addDoc(collection(db, 'tasks'), { ...t, userId: user.uid, createdAt: serverTimestamp() });
+        // Check with getDocs if habits already exist for this user first
+        const habitsQuery = query(collection(db, 'habits'), where('userId', '==', user.uid));
+        const habitsSnap = await getDocs(habitsQuery);
+        
+        if (habitsSnap.empty) {
+          // Tareas predeterminadas
+          const defaultTasks = [
+            { title: "Terminar proyecto pendiente", category: "work", completed: false },
+            { title: "Hacer ejercicio 30 min", category: "wellness", completed: false },
+            { title: "Leer 20 minutos", category: "personal", completed: false }
+          ];
+          for (const t of defaultTasks) {
+            await addDoc(collection(db, 'tasks'), { ...t, userId: user.uid, createdAt: serverTimestamp() });
+          }
+
+          // Hábitos de bienestar predeterminados
+          const defaultWellness = [
+            { label: "Beber agua", type: "water", time: "08:00", completed: false, group: "wellness" },
+            { label: "Almuerzo saludable", type: "food", time: "13:00", completed: false, group: "wellness" },
+            { label: "Descanso visual", type: "rest", time: "16:00", completed: false, group: "wellness" }
+          ];
+          for (const w of defaultWellness) {
+            await addDoc(collection(db, 'habits'), { ...w, userId: user.uid, createdAt: serverTimestamp() });
+          }
+
+          // Rutinas predeterminadas
+          const defaultRoutines = [
+            { activity: "Despertar y estirar", type: "rest", time: "07:00", completed: false, group: "routine" },
+            { activity: "Revisar pendientes", type: "work", time: "09:00", completed: false, group: "routine" }
+          ];
+          for (const r of defaultRoutines) {
+            await addDoc(collection(db, 'habits'), { ...r, userId: user.uid, createdAt: serverTimestamp() });
+          }
+
+          // Alarmas predeterminadas
+          const defaultAlarms = [
+            { title: "Desayuno", category: "meal", time: "08:00", days: ["Todos"], enabled: true },
+            { title: "Vitaminas", category: "medicine", time: "09:30", days: ["Todos"], enabled: true }
+          ];
+          for (const a of defaultAlarms) {
+            await addDoc(collection(db, 'alarms'), { ...a, userId: user.uid, createdAt: serverTimestamp() });
+          }
         }
 
-        // Hábitos de bienestar predeterminados
-        const defaultWellness = [
-          { label: "Beber agua", type: "water", time: "08:00", completed: false, group: "wellness" },
-          { label: "Almuerzo saludable", type: "food", time: "13:00", completed: false, group: "wellness" },
-          { label: "Descanso visual", type: "rest", time: "16:00", completed: false, group: "wellness" }
-        ];
-        for (const w of defaultWellness) {
-          await addDoc(collection(db, 'habits'), { ...w, userId: user.uid, createdAt: serverTimestamp() });
-        }
-
-        // Rutinas predeterminadas
-        const defaultRoutines = [
-          { activity: "Despertar y estirar", type: "rest", time: "07:00", completed: false, group: "routine" },
-          { activity: "Revisar pendientes", type: "work", time: "09:00", completed: false, group: "routine" }
-        ];
-        for (const r of defaultRoutines) {
-          await addDoc(collection(db, 'habits'), { ...r, userId: user.uid, createdAt: serverTimestamp() });
-        }
-
-        // Alarmas predeterminadas
-        const defaultAlarms = [
-          { title: "Desayuno", category: "meal", time: "08:00", days: ["Todos"], enabled: true },
-          { title: "Vitaminas", category: "medicine", time: "09:30", days: ["Todos"], enabled: true }
-        ];
-        for (const a of defaultAlarms) {
-          await addDoc(collection(db, 'alarms'), { ...a, userId: user.uid, createdAt: serverTimestamp() });
-        }
+        await setDoc(doc(db, 'users', user.uid), { habitsInitialized: true }, { merge: true });
       }
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, path);

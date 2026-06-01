@@ -36,7 +36,7 @@ service cloud.firestore {
       ); 
       allow create: if isOwner(userId) && isValidUser(incoming());
       allow update: if isOwner(userId) && isValidUser(incoming()) && 
-                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'photoURL', 'mascotName', 'streak', 'balance', 'lastActive', 'kairosId']);
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'photoURL', 'mascotName', 'streak', 'balance', 'lastActive', 'kairosId', 'habitsInitialized']);
       allow delete: if isOwner(userId);
       
       function isValidUser(data) {
@@ -45,7 +45,8 @@ service cloud.firestore {
                data.name is string && data.name.size() <= 100 &&
                data.mascotName is string && data.mascotName.size() <= 50 &&
                data.streak is number &&
-               data.balance is number;
+               data.balance is number &&
+               (!data.keys().hasAny(['habitsInitialized']) || data.habitsInitialized is bool);
       }
     }
 
